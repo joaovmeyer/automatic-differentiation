@@ -3,13 +3,16 @@
 #include <cmath>
 #include <memory>
 
+#include "../graph.h"
+#include "../rng.h"
+
 using namespace std;
 
 
 struct Expression {
 	float value;
-	virtual void evaluate() = 0;
-	virtual void derive(float seed = 1.0) = 0;
+	virtual inline void evaluate() = 0;
+	virtual inline void derive(float seed = 1.0) = 0;
 };
 
 using ptrExp = std::shared_ptr<Expression>;
@@ -205,6 +208,7 @@ struct Vec {
 
 	}
 
+
 	vector<float> getGradient() {
 		vector<float> grad(size);
 
@@ -261,7 +265,7 @@ struct Mat {
 		cols = mat[0].size();
 	}
 
-	Mat(size_t c, size_t r, float fillValue = 0) {
+	Mat(size_t r, size_t c, float fillValue = 0) {
 		for (size_t i = 0; i < r; ++i) {
 			data.push_back(Vec(c, fillValue));
 		}
@@ -292,6 +296,20 @@ struct Mat {
 	}
 
 
+
+	static Mat getRandom(size_t rows, size_t cols, float mean = 0, float stddev = 1) {
+		Mat ans(rows, cols);
+
+		for (size_t i = 0; i < rows; ++i) {
+			for (size_t j = 0; j < cols; ++j) {
+				ans[i][j]->value = rng::fromNormalDistribution(mean, stddev);
+			}
+		}
+
+		return ans;
+	}
+
+
 	vector<vector<float>> getGradient() {
 		vector<vector<float>> grad(rows, vector<float>(cols, 0.0));
 
@@ -316,34 +334,64 @@ struct Mat {
 
 int main () {
 
-	Vec x(2, 1.0);
-	Vec y(1, 0.0);
+	Graph graph;
 
-	Mat w1({
-		{ 0.1, 0.2 },
-		{ 0.4, 0.3 }
-	});
-	Vec b1(2, 0.1);
 
-	Mat w2({
-		{ 0.6, 0.5 }
-	});
+	// make the neural network
+	int hiddenSize = 30;
+
+	Mat w1 = Mat::getRandom(hiddenSize, 1, 0, 0.2);
+	Vec b1(hiddenSize, 0.1);
+
+	Mat w2 = Mat::getRandom(1, hiddenSize, 0, 0.2);
 	Vec b2(1, 0.1);
+
+	Vec x(1);
+	Vec y(1);
 
 	Vec a1 = Vec::sigmoid(w1 * x + b1);
 	Vec y_pred = Vec::sigmoid(w2 * a1 + b2);
 
 	ptrExp loss = Vec::dot(y_pred - y, y_pred - y);
 
-	y_pred[0]->evaluate();
-	loss->evaluate();
-	cout << "Before training: \n";
-	cout << "Value: " << y_pred[0]->value << ", expected: 0.0\n";
-	cout << "Loss: " << loss->value << "\n";
 
-	float lr = 0.1;
 
-	for (int i = 0; i < 100000; ++i) {
+	// make the dataset
+	vector<float> X;
+	vector<float> cos;
+
+	std::shared_ptr<Line> l1 = std::make_shared<Line>();
+	std::shared_ptr<Line> l2 = std::make_shared<Line>(olc::GREEN);
+
+	for (float i = -5; i < 5; i += 0.1) {
+
+		float noisyCos = std::cos(i) + rng::fromNormalDistribution(0, 0.15);
+
+		X.push_back(i);
+		cos.push_back((noisyCos + 1.0) * 0.1);
+
+		l1->addPoint(Point(i, std::cos(i)));
+		graph.addPoint(Point(i, noisyCos));
+
+		x[0]->value = i;
+		y_pred[0]->evaluate();
+
+		l2->addPoint(Point(i, y_pred[0]->value * 2.0 - 1.0));
+	}
+
+	graph.addLine(l1);
+	graph.addLine(l2);
+
+
+
+	// train it
+	float lr = 0.3;
+
+	for (int i = 0; i < 10000000; ++i) {
+
+		x[0]->value = X[i % X.size()];
+		y[0]->value = cos[i % cos.size()];
+
 		loss->evaluate();
 		loss->derive();
 
@@ -368,13 +416,20 @@ int main () {
 				w2[i][j] -= gradW2[i][j] * lr;
 			}
 		}
+
+		size_t index = 0;
+		if ((i + 1) % 10000 == 0) {
+			for (float i = -5; i < 5; i += 0.1) {
+				x[0]->value = i;
+				y_pred[0]->evaluate();
+
+				l2->points[index++].y = y_pred[0]->value * 10.0 - 1.0;
+			}
+		}
 	}
 
-	y_pred[0]->evaluate();
-	loss->evaluate();
-	cout << "Before training: \n";
-	cout << "Value: " << y_pred[0]->value << ", expected: 0.0\n";
-	cout << "Loss: " << loss->value << "\n";
+
+	graph.waitFinish();
 
 
 	return 0;

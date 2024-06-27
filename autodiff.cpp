@@ -10,19 +10,28 @@
 using namespace std;
 
 
+int currentId = 0;
+
 struct Node : enable_shared_from_this<Node> {
 	vector<shared_ptr<Node>> childs;
 	vector<shared_ptr<Node>> parents;
 	string name;
 	int id;
 
-	Node(string n, int i) : name(n), id(i) {
-		
+    float value;
+    float partial;
+
+	Node(float v = 0, float p = 0, string n = "") : value(v), partial(p), name(n) {
+		id = currentId++;
 	}
 
-	static shared_ptr<Node> createNode(const vector<shared_ptr<Node>>& c, string n, int i) {
+    virtual inline void evaluate() {};
+    virtual inline void derive() {};
 
-		shared_ptr<Node> node = make_shared<Node>(n, i);
+
+	static shared_ptr<Node> createNode(const vector<shared_ptr<Node>>& c, float v, float p, string n) {
+
+		shared_ptr<Node> node = make_shared<Node>(v, p, n);
 
 		node->childs.reserve(c.size());
 
@@ -33,9 +42,112 @@ struct Node : enable_shared_from_this<Node> {
 
 		return node;
 	}
+
+    void addChildren(const vector<shared_ptr<Node>>& c) {
+        childs.insert(childs.end(), c.begin(), c.end());
+
+        for (size_t i = 0; i < c.size(); ++i) {
+			c[i]->parents.push_back(shared_from_this());
+		}
+    }
+
+    void addChildren(const shared_ptr<Node>& c) {
+        childs.push_back(c);
+        c->parents.push_back(shared_from_this());
+    }
 };
 
 using NodePtr = std::shared_ptr<Node>;
+
+using Expression = Node;
+/*
+struct Expression : Node {
+    float value;
+    float partial;
+
+    Expression(float v = 0, float p = 0) : value(v), partial(p) {}
+
+    virtual inline void evaluate() = 0;
+    virtual inline void derive(float seed = 1.0f) = 0;
+};*/
+
+using ExpPtr = std::shared_ptr<Expression>;
+
+struct Variable : Expression {
+
+    Variable(float v) {
+        value = v;
+    }
+
+    void evaluate() {
+
+    }
+
+    void derive() {
+
+    }
+};
+
+struct Add : Expression {
+
+    ExpPtr a, b;
+
+    Add() {}
+
+    static NodePtr build(ExpPtr a1, ExpPtr a2) {
+
+        shared_ptr<Add> add = make_shared<Add>();
+        NodePtr addNode = dynamic_pointer_cast<Node>(add);
+
+        add->a = a1;
+        add->b = a2;
+
+        add->a->addChildren(addNode);
+        add->b->addChildren(addNode);
+
+        return addNode;
+    }
+
+    void evaluate() {
+        value = a->value + b->value;
+    }
+
+    void derive() {
+        a->partial += partial;
+        b->partial += partial;
+    }
+};
+
+struct Mult : Expression {
+
+    ExpPtr a, b;
+
+    Mult() {}
+
+    static NodePtr build(ExpPtr a1, ExpPtr a2) {
+
+        shared_ptr<Mult> add = make_shared<Mult>();
+        NodePtr addNode = dynamic_pointer_cast<Node>(add);
+
+        add->a = a1;
+        add->b = a2;
+
+        add->a->addChildren(addNode);
+        add->b->addChildren(addNode);
+
+        return addNode;
+    }
+
+    void evaluate() {
+        value = a->value * b->value;
+    }
+
+    void derive() {
+        a->partial += partial * b->value;
+        b->partial += partial * a->value;
+    }
+};
+
 
 
 
@@ -104,19 +216,32 @@ vector<NodePtr> topologicalSort2(const NodePtr& endNode) {
 
 
 int main() {
+    
+//    (x + y) * y at (2, 6)
 
-	NodePtr v5 = Node::createNode({}, "v5", 1);
-	NodePtr v4 = Node::createNode({ v5 }, "v4", 2);
-	NodePtr v1 = Node::createNode({ v4 }, "v1", 3);
-	NodePtr v2 = Node::createNode({ v4 }, "v2", 4);
-	NodePtr x = Node::createNode({ v1, v2 }, "x", 5);
+    ExpPtr a1 = make_shared<Expression>(2.0f);
+    ExpPtr a2 = make_shared<Expression>(6.0f);
 
+    ExpPtr sum = Add::build(a1, a2);
+    ExpPtr mult = Mult::build(sum, a2);
 
-	vector<NodePtr> ordering = topologicalSort(x);
+    vector<NodePtr> ordering = topologicalSort2(mult);
 
-	for (int i = ordering.size() - 1; i >= 0; --i) {
-		cout << ordering[i]->name << ", ";
+    for (int i = ordering.size() - 1; i >= 0; --i) {
+        cout << ordering[i]->id << ", ";
+        ordering[i]->evaluate();
 	}
+
+    mult->partial = 1.0;
+    for (size_t i = 0; i < ordering.size(); ++i) {
+        ordering[i]->derive();
+	}
+
+    cout << "Resultado: " << mult->value << "\n";
+    cout << "Derivada: \n - a1: " << a1->partial << "\n - a2: " << a2->partial << "\n";
+    cout << " - sum: " << sum->partial << "\n";
+
+
 
 
 	return 0;

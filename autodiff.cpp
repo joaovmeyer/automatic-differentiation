@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <functional>
+#include <type_traits>
 
 
 using namespace std;
@@ -128,8 +129,13 @@ struct Mult : Variable {
 };
 
 
+Var operator + (const Var& v1, const Var& v2) {
+    return Add::build(v1, v2);
+}
 
-
+Var operator * (const Var& v1, const Var& v2) {
+    return Mult::build(v1, v2);
+}
 
 
 
@@ -198,7 +204,19 @@ vector<NodePtr> topologicalSort2(const NodePtr& endNode) {
 }
 
 
+template <typename T>
+void calculateDerivatives(const T& node) {
+    vector<NodePtr> ordering = topologicalSort2(node);
 
+    for (int i = ordering.size() - 1; i >= 0; --i) {
+        ordering[i]->evaluate();
+	}
+
+    node->partial = 1.0;
+    for (size_t i = 0; i < ordering.size(); ++i) {
+        ordering[i]->derive();
+	}
+}
 
 
 
@@ -207,22 +225,13 @@ int main() {
     Var a1 = Variable::build(2.0f, "a1");
     Var a2 = Variable::build(6.0f, "a2");
 
-    Var sum = Add::build(a1, a2);
-    Var mult = Mult::build(sum, a2);
+    Var sum = a1 + a2;
+    Var func = sum * a2;
 
-    vector<NodePtr> ordering = topologicalSort2(mult);
+    calculateDerivatives(func);
 
-    for (int i = ordering.size() - 1; i >= 0; --i) {
-        ordering[i]->evaluate();
-	}
-
-    mult->partial = 1.0;
-    for (size_t i = 0; i < ordering.size(); ++i) {
-        ordering[i]->derive();
-	}
-
-    cout << "Func: " << mult->name << "\n";
-    cout << "Resultado: " << mult->value << "\n";
+    cout << "Func: " << func->name << "\n";
+    cout << "Resultado: " << func->value << "\n";
     cout << "Derivada: \n - a1: " << a1->partial << "\n - a2: " << a2->partial << "\n";
     cout << " - sum: " << sum->partial << "\n";
 

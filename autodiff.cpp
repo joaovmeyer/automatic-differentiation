@@ -18,30 +18,13 @@ struct Node : enable_shared_from_this<Node> {
 	string name;
 	int id;
 
-    float value;
-    float partial;
-
-	Node(float v = 0, float p = 0, string n = "") : value(v), partial(p), name(n) {
+	Node(string n = "") : name(n) {
 		id = currentId++;
 	}
 
-    virtual inline void evaluate() {};
-    virtual inline void derive() {};
+    virtual inline void evaluate() = 0;
+    virtual inline void derive() = 0;
 
-
-	static shared_ptr<Node> createNode(const vector<shared_ptr<Node>>& c, float v, float p, string n) {
-
-		shared_ptr<Node> node = make_shared<Node>(v, p, n);
-
-		node->childs.reserve(c.size());
-
-		for (size_t i = 0; i < c.size(); ++i) {
-			node->childs.push_back(c[i]);
-			c[i]->parents.push_back(node);
-		}
-
-		return node;
-	}
 
     void addChildren(const vector<shared_ptr<Node>>& c) {
         childs.insert(childs.end(), c.begin(), c.end());
@@ -59,94 +42,94 @@ struct Node : enable_shared_from_this<Node> {
 
 using NodePtr = std::shared_ptr<Node>;
 
-using Expression = Node;
-/*
-struct Expression : Node {
+struct Variable : Node {
+
     float value;
     float partial;
 
-    Expression(float v = 0, float p = 0) : value(v), partial(p) {}
-
-    virtual inline void evaluate() = 0;
-    virtual inline void derive(float seed = 1.0f) = 0;
-};*/
-
-using ExpPtr = std::shared_ptr<Expression>;
-
-struct Variable : Expression {
-
-    Variable(float v) {
+    Variable(float v = 0.0f, string n = "") {
         value = v;
+        name = (n == "") ? std::to_string(v) : n;
     }
 
-    void evaluate() {
+    static std::shared_ptr<Variable> build(float v = 0.0f, string n = "") {
+        return std::make_shared<Variable>(v, n);
+    }
+
+    void evaluate() override {
 
     }
 
-    void derive() {
+    void derive() override {
 
     }
 };
 
-struct Add : Expression {
+using Var = std::shared_ptr<Variable>;
 
-    ExpPtr a, b;
+struct Add : Variable {
+
+    Var a, b;
 
     Add() {}
 
-    static NodePtr build(ExpPtr a1, ExpPtr a2) {
+    static Var build(Var a1, Var a2) {
 
         shared_ptr<Add> add = make_shared<Add>();
-        NodePtr addNode = dynamic_pointer_cast<Node>(add);
 
         add->a = a1;
         add->b = a2;
+        add->name = "(" + a1->name + " + " + a2->name + ")";
 
-        add->a->addChildren(addNode);
-        add->b->addChildren(addNode);
+        add->a->addChildren(add);
+        add->b->addChildren(add);
 
-        return addNode;
+        return add;
     }
 
-    void evaluate() {
+    void evaluate() override {
         value = a->value + b->value;
     }
 
-    void derive() {
+    void derive() override {
         a->partial += partial;
         b->partial += partial;
     }
 };
 
-struct Mult : Expression {
+struct Mult : Variable {
 
-    ExpPtr a, b;
+    Var a, b;
 
     Mult() {}
 
-    static NodePtr build(ExpPtr a1, ExpPtr a2) {
+    static Var build(Var a1, Var a2) {
 
-        shared_ptr<Mult> add = make_shared<Mult>();
-        NodePtr addNode = dynamic_pointer_cast<Node>(add);
+        shared_ptr<Mult> mult = make_shared<Mult>();
 
-        add->a = a1;
-        add->b = a2;
+        mult->a = a1;
+        mult->b = a2;
+        mult->name = "(" + a1->name + " * " + a2->name + ")";
 
-        add->a->addChildren(addNode);
-        add->b->addChildren(addNode);
+        mult->a->addChildren(mult);
+        mult->b->addChildren(mult);
 
-        return addNode;
+        return mult;
     }
 
-    void evaluate() {
+    void evaluate() override {
         value = a->value * b->value;
     }
 
-    void derive() {
+    void derive() override {
         a->partial += partial * b->value;
         b->partial += partial * a->value;
     }
 };
+
+
+
+
 
 
 
@@ -215,20 +198,21 @@ vector<NodePtr> topologicalSort2(const NodePtr& endNode) {
 }
 
 
+
+
+
+
 int main() {
-    
-//    (x + y) * y at (2, 6)
 
-    ExpPtr a1 = make_shared<Expression>(2.0f);
-    ExpPtr a2 = make_shared<Expression>(6.0f);
+    Var a1 = Variable::build(2.0f, "a1");
+    Var a2 = Variable::build(6.0f, "a2");
 
-    ExpPtr sum = Add::build(a1, a2);
-    ExpPtr mult = Mult::build(sum, a2);
+    Var sum = Add::build(a1, a2);
+    Var mult = Mult::build(sum, a2);
 
     vector<NodePtr> ordering = topologicalSort2(mult);
 
     for (int i = ordering.size() - 1; i >= 0; --i) {
-        cout << ordering[i]->id << ", ";
         ordering[i]->evaluate();
 	}
 
@@ -237,12 +221,10 @@ int main() {
         ordering[i]->derive();
 	}
 
+    cout << "Func: " << mult->name << "\n";
     cout << "Resultado: " << mult->value << "\n";
     cout << "Derivada: \n - a1: " << a1->partial << "\n - a2: " << a2->partial << "\n";
     cout << " - sum: " << sum->partial << "\n";
-
-
-
 
 	return 0;
 }

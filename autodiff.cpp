@@ -12,46 +12,28 @@ using namespace std;
 
 
 struct Node : enable_shared_from_this<Node> {
-	vector<shared_ptr<Node>> childs;
 	vector<shared_ptr<Node>> parents;
 	string name;
-	size_t id;
 
-	Node(string n = "") : name(n), id(Node::currentId++) {
+	Node(string n = "") : name(n) {
 
 	}
-
-	static size_t currentId;
 
     virtual inline void evaluate() = 0;
     virtual inline void derive() = 0;
 
 
-    void addChildren(const vector<shared_ptr<Node>>& c) {
-        childs.insert(childs.end(), c.begin(), c.end());
-
-        for (size_t i = 0; i < c.size(); ++i) {
-			c[i]->parents.push_back(shared_from_this());
-		}
-    }
-
-    void addChildren(const shared_ptr<Node>& c) {
-        childs.push_back(c);
-        c->parents.push_back(shared_from_this());
-    }
-
-
     vector<std::shared_ptr<Node>> topologicalSort() {
     	vector<std::shared_ptr<Node>> ordering;
-		unordered_set<int> visited;
+		unordered_set<std::shared_ptr<Node>> visited;
 
 		std::function<void(const std::shared_ptr<Node>&)> addChildren = [&](const std::shared_ptr<Node>& node) {
 			// if the node has no parents, we shouldn't need to either evaluate nor derive it
-			if (visited.find(node->id) != visited.end() || !node->parents.size()) {
+			if (visited.find(node) != visited.end() || !node->parents.size()) {
 				return;
 			}
 
-			visited.insert(node->id);
+			visited.insert(node);
 			for (size_t i = 0; i < node->parents.size(); ++i) {
 				addChildren(node->parents[i]);
 			}
@@ -59,13 +41,14 @@ struct Node : enable_shared_from_this<Node> {
 			ordering.push_back(node);
 		};
 
+		// this does require this Node to have a shared_ptr to it, 
+		// but there's no situation where it shouldn't have one, so it's fine
 		addChildren(shared_from_this());
 
 		return ordering;
 	}
 };
 
-size_t Node::currentId = 0;
 
 struct Variable : Node {
 
@@ -111,16 +94,16 @@ struct Add : Variable {
 
     Add() {}
 
-    static Var build(Var a1, Var a2) {
+    static Var build(Var v1, Var v2) {
 
         shared_ptr<Add> add = make_shared<Add>();
 
-        add->a = a1;
-        add->b = a2;
-        add->name = "(" + a1->name + " + " + a2->name + ")";
+        add->a = v1;
+        add->b = v2;
+        add->name = "(" + v1->name + " + " + v2->name + ")";
 
-        add->a->addChildren(add);
-        add->b->addChildren(add);
+        add->parents.push_back(v1);
+        add->parents.push_back(v2);
 
         return add;
     }
@@ -141,16 +124,16 @@ struct Mult : Variable {
 
     Mult() {}
 
-    static Var build(Var a1, Var a2) {
+    static Var build(Var v1, Var v2) {
 
         shared_ptr<Mult> mult = make_shared<Mult>();
 
-        mult->a = a1;
-        mult->b = a2;
-        mult->name = "(" + a1->name + " * " + a2->name + ")";
+        mult->a = v1;
+        mult->b = v2;
+        mult->name = "(" + v1->name + " * " + v2->name + ")";
 
-        mult->a->addChildren(mult);
-        mult->b->addChildren(mult);
+        mult->parents.push_back(v1);
+        mult->parents.push_back(v2);
 
         return mult;
     }

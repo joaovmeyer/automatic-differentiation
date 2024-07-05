@@ -5,23 +5,23 @@
 #include <memory>
 #include <string>
 #include <functional>
-#include <type_traits>
 
 
 using namespace std;
 
 
-int currentId = 0;
 
 struct Node : enable_shared_from_this<Node> {
 	vector<shared_ptr<Node>> childs;
 	vector<shared_ptr<Node>> parents;
 	string name;
-	int id;
+	size_t id;
 
-	Node(string n = "") : name(n) {
-		id = currentId++;
+	Node(string n = "") : name(n), id(Node::currentId++) {
+
 	}
+
+	static size_t currentId;
 
     virtual inline void evaluate() = 0;
     virtual inline void derive() = 0;
@@ -39,16 +39,40 @@ struct Node : enable_shared_from_this<Node> {
         childs.push_back(c);
         c->parents.push_back(shared_from_this());
     }
+
+
+    vector<std::shared_ptr<Node>> topologicalSort() {
+    	vector<std::shared_ptr<Node>> ordering;
+		unordered_set<int> visited;
+
+		std::function<void(const std::shared_ptr<Node>&)> addChildren = [&](const std::shared_ptr<Node>& node) {
+			// if the node has no parents, we shouldn't need to either evaluate nor derive it
+			if (visited.find(node->id) != visited.end() || !node->parents.size()) {
+				return;
+			}
+
+			visited.insert(node->id);
+			for (size_t i = 0; i < node->parents.size(); ++i) {
+				addChildren(node->parents[i]);
+			}
+
+			ordering.push_back(node);
+		};
+
+		addChildren(shared_from_this());
+
+		return ordering;
+	}
 };
 
-using NodePtr = std::shared_ptr<Node>;
+size_t Node::currentId = 0;
 
 struct Variable : Node {
 
     float value;
     float partial;
 
-    Variable(float v = 0.0f, string n = "") {
+    Variable(float v = 0.0f, string n = "") : partial(0.0f) {
         value = v;
         name = (n == "") ? std::to_string(v) : n;
     }
@@ -63,6 +87,19 @@ struct Variable : Node {
 
     void derive() override {
 
+    }
+
+    void calculateDerivatives() {
+    	vector<std::shared_ptr<Node>> ordering = topologicalSort();
+
+	    for (size_t i = 0; i < ordering.size(); ++i) {
+	        ordering[i]->evaluate();
+		}
+
+	    partial = 1.0; // dx/dx is 1 for whatever x
+	    for (size_t i = ordering.size(); i > 0; --i) {
+	        ordering[i - 1]->derive();
+		}
     }
 };
 
@@ -140,84 +177,6 @@ Var operator * (const Var& v1, const Var& v2) {
 
 
 
-// returns an order in wich if node i is a parent of node j,
-// than node j will happen first than node i in the order.
-// This is possible becaues the graph is acyclic
-vector<NodePtr> topologicalSort(const NodePtr& root) {
-	vector<NodePtr> ordering;
-	unordered_set<int> visited;
-
-	std::function<void(const NodePtr&)> addChildren = [&](const NodePtr& node) {
-		if (visited.find(node->id) != visited.end()) {
-			return;
-		}
-
-		visited.insert(node->id);
-		for (size_t i = 0; i < node->childs.size(); ++i) {
-			addChildren(node->childs[i]);
-		}
-
-		ordering.push_back(node);
-	};
-
-	addChildren(root);
-
-	return ordering;
-}
-
-
-// this is similar to the first one, but it will not add nodes
-// that are not influent to the given endNode. This is a bit more 
-// costly to make but may avoid unnecessary calculations
-vector<NodePtr> topologicalSort2(const NodePtr& endNode) {
-
-	unordered_map<int, int> numChilds;
-	vector<NodePtr> stack = { endNode };
-
-	while (stack.size()) {
-		NodePtr node = stack.back(); stack.pop_back();
-
-		auto result = numChilds.insert({ node->id, 1 });
-		if (!result.second) { // key was already in map
-			++(result.first->second);
-		} else {
-			stack.insert(stack.end(), node->parents.begin(), node->parents.end());
-		}
-	}
-
-	vector<NodePtr> ordering;
-
-	stack = { endNode };
-	while (stack.size()) {
-
-		NodePtr node = stack.back(); stack.pop_back();
-		ordering.push_back(node);
-
-		for (size_t i = 0; i < node->parents.size(); ++i) {
-			if (!(--numChilds[node->parents[i]->id])) {
-				stack.push_back(node->parents[i]);
-			}
-		}
-	}
-
-	return ordering;
-}
-
-
-template <typename T>
-void calculateDerivatives(const T& node) {
-    vector<NodePtr> ordering = topologicalSort2(node);
-
-    for (int i = ordering.size() - 1; i >= 0; --i) {
-        ordering[i]->evaluate();
-	}
-
-    node->partial = 1.0;
-    for (size_t i = 0; i < ordering.size(); ++i) {
-        ordering[i]->derive();
-	}
-}
-
 
 
 int main() {
@@ -225,15 +184,13 @@ int main() {
     Var a1 = Variable::build(2.0f, "a1");
     Var a2 = Variable::build(6.0f, "a2");
 
-    Var sum = a1 + a2;
-    Var func = sum * a2;
+    Var func = (a1 + a2) * a2;
 
-    calculateDerivatives(func);
+    func->calculateDerivatives();
 
-    cout << "Func: " << func->name << "\n";
-    cout << "Resultado: " << func->value << "\n";
-    cout << "Derivada: \n - a1: " << a1->partial << "\n - a2: " << a2->partial << "\n";
-    cout << " - sum: " << sum->partial << "\n";
+    cout << "Function: " << func->name << "\n";
+    cout << "Value at (a1, a2) = (2, 6): " << func->value << "\n";
+    cout << "Derivatives: \n - a1: " << a1->partial << "\n - a2: " << a2->partial << "\n";
 
 	return 0;
 }

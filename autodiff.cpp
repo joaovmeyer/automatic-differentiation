@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <functional>
+#include <cmath>
 
 
 using namespace std;
@@ -55,8 +56,7 @@ struct Variable : Node {
     float value;
     float partial;
 
-    Variable(float v = 0.0f, string n = "") : partial(0.0f) {
-        value = v;
+    Variable(float v = 0.0f, string n = "") : value(v), partial(0.0f) {
         name = (n == "") ? std::to_string(v) : n;
     }
 
@@ -94,7 +94,7 @@ struct Add : Variable {
 
     Add() {}
 
-    static Var build(Var v1, Var v2) {
+    static Var build(const Var& v1, const Var& v2) {
 
         shared_ptr<Add> add = make_shared<Add>();
 
@@ -108,11 +108,11 @@ struct Add : Variable {
         return add;
     }
 
-    void evaluate() override {
+    void evaluate() override final {
         value = a->value + b->value;
     }
 
-    void derive() override {
+    void derive() override final {
         a->partial += partial;
         b->partial += partial;
     }
@@ -124,7 +124,7 @@ struct Mult : Variable {
 
     Mult() {}
 
-    static Var build(Var v1, Var v2) {
+    static Var build(const Var& v1, const Var& v2) {
 
         shared_ptr<Mult> mult = make_shared<Mult>();
 
@@ -138,31 +138,185 @@ struct Mult : Variable {
         return mult;
     }
 
-    void evaluate() override {
+    void evaluate() override final {
         value = a->value * b->value;
     }
 
-    void derive() override {
+    void derive() override final {
         a->partial += partial * b->value;
         b->partial += partial * a->value;
     }
 };
 
+struct Sin : Variable {
 
-Var operator + (const Var& v1, const Var& v2) {
+    Var a;
+
+    Sin() {}
+
+    static Var build(const Var& v) {
+
+        shared_ptr<Sin> sin = make_shared<Sin>();
+
+        sin->a = v;
+        sin->name = "sin(" + v->name + ")";
+
+        sin->parents.push_back(v);
+
+        return sin;
+    }
+
+    void evaluate() override final {
+        value = std::sin(a->value);
+    }
+
+    void derive() override final {
+        a->partial += partial * std::cos(a->value);
+    }
+};
+
+struct Cos : Variable {
+
+    Var a;
+
+    Cos() {}
+
+    static Var build(const Var& v) {
+
+        shared_ptr<Cos> cos = make_shared<Cos>();
+
+        cos->a = v;
+        cos->name = "cos(" + v->name + ")";
+
+        cos->parents.push_back(v);
+
+        return cos;
+    }
+
+    void evaluate() override final {
+        value = std::cos(a->value);
+    }
+
+    void derive() override final {
+        a->partial -= partial * std::sin(a->value);
+    }
+};
+
+struct Exp : Variable {
+
+    Var a;
+
+    Exp() {}
+
+    static Var build(const Var& v) {
+
+        shared_ptr<Exp> exp = make_shared<Exp>();
+
+        exp->a = v;
+        exp->name = "exp(" + v->name + ")";
+
+        exp->parents.push_back(v);
+
+        return exp;
+    }
+
+    void evaluate() override final {
+        value = std::exp(a->value);
+    }
+
+    void derive() override final {
+        a->partial += partial * value;
+    }
+};
+
+struct Ln : Variable {
+
+    Var a;
+
+    Ln() {}
+
+    static Var build(const Var& v) {
+
+        shared_ptr<Ln> ln = make_shared<Ln>();
+
+        ln->a = v;
+        ln->name = "ln(" + v->name + ")";
+
+        ln->parents.push_back(v);
+
+        return ln;
+    }
+
+    void evaluate() override final {
+        value = std::log(a->value);
+    }
+
+    void derive() override final {
+        a->partial += partial / a->value;
+    }
+};
+
+struct Div : Variable {
+
+    Var a, b;
+
+    Div() {}
+
+    static Var build(const Var& v1, const Var& v2) {
+
+        shared_ptr<Div> div = make_shared<Div>();
+
+        div->a = v1;
+        div->b = v2;
+        div->name = "(" + v1->name + " / " + v2->name + ")";
+
+        div->parents.push_back(v1);
+        div->parents.push_back(v2);
+
+        return div;
+    }
+
+    void evaluate() override final {
+        value = a->value / b->value;
+    }
+
+    void derive() override final {
+    	float inv = 1.0f / (b->value * b->value);
+        a->partial += partial * b->value * inv;
+        b->partial -= partial * a->value * inv;
+    }
+};
+
+
+inline Var operator + (const Var& v1, const Var& v2) {
     return Add::build(v1, v2);
 }
 
-Var operator * (const Var& v1, const Var& v2) {
+inline Var operator * (const Var& v1, const Var& v2) {
     return Mult::build(v1, v2);
 }
 
+inline Var operator / (const Var& v1, const Var& v2) {
+    return Div::build(v1, v2);
+}
 
 
+inline Var operator + (const Var& v, float f) {
+	return Add::build(v, Variable::build(f));
+}
+
+inline Var operator / (float f, const Var& v) {
+	return Div::build(Variable::build(f), v);
+}
 
 
 
 int main() {
+
+	cout << "\n";
+
+
+
 
     Var a1 = Variable::build(2.0f, "a1");
     Var a2 = Variable::build(6.0f, "a2");
@@ -173,7 +327,19 @@ int main() {
 
     cout << "Function: " << func->name << "\n";
     cout << "Value at (a1, a2) = (2, 6): " << func->value << "\n";
-    cout << "Derivatives: \n - a1: " << a1->partial << "\n - a2: " << a2->partial << "\n";
+    cout << "Derivatives: \n - a1: " << a1->partial << "\n - a2: " << a2->partial << "\n\n";
+
+
+
+    Var x = Variable::build(0.0f, "x");
+
+    Var f = Sin::build(x) + Cos::build(x * x) + Exp::build(x * x * x) + Ln::build(x + 1.0f) + 1.0f / (x + 2.0f);
+
+    f->calculateDerivatives();
+
+    cout << "Function: " << f->name << "\n";
+    cout << "Value at x = 1: " << f->value << "\n";
+    cout << "Derivatives: \n - x: " << x->partial << "\n";
 
 	return 0;
 }

@@ -277,65 +277,6 @@ inline Var operator * (const Vec& v1, const Vec& v2) {
 
 
 
-
-struct MatDotVec : Vector {
-
-	Mat a;
-	Vec b;
-
-	MatDotVec(size_t s = 0, float fillValue = 0.0f) {
-		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
-	}
-
-	static Vec build(const Mat& m, const Vec& v) {
-
-		std::shared_ptr<MatDotVec> node = std::make_shared<MatDotVec>(m->rows);
-
-		node->a = m;
-		node->b = v;
-		node->name = "(" + m->name + " * " + v->name + ")";
-
-		node->parents.push_back(m);
-		node->parents.push_back(v);
-
-		return node;
-	}
-
-	void evaluate() override final {
-	//	value = std::vector<float>(size, 0.0f);
-
-		for (size_t i = 0; i < a->rows; ++i) {
-			value[i] = 0.0f;
-			for (size_t j = 0; j < a->cols; ++j) {
-				value[i] += a->value[i][j] * b->value[j];
-			}
-		}
-	}
-
-	void derive() override final {
-
-		for (size_t i = 0; i < a->rows; ++i) {
-			for (size_t j = 0; j < a->cols; ++j) {
-
-				// b->partial = A^T * partial
-				b->partial[j] += a->value[i][j] * partial[i];
-
-				a->partial[i][j] += b->value[j] * partial[i];
-			}
-		}
-	}
-};
-
-inline Vec operator * (const Mat& m, const Vec& v) {
-	return MatDotVec::build(m, v);
-}
-
-
-
-
-
 struct VecMinusVec : Vector {
 
 	Vec a, b;
@@ -462,6 +403,203 @@ struct VecTanh : Vector {
 Vec tanh(const Vec& v) {
 	return VecTanh::build(v);
 }
+
+
+
+
+struct VecSigmoid : Vector {
+
+	Vec a;
+
+	VecSigmoid(size_t s = 0, float fillValue = 0.0f) {
+		size = s;
+		value = std::vector<float>(s, fillValue);
+		partial = std::vector<float>(s, 0.0f);
+	}
+
+	static Vec build(const Vec& v) {
+
+		std::shared_ptr<VecSigmoid> node = std::make_shared<VecSigmoid>(v->size);
+
+		node->a = v;
+		node->name = "sigmoid(" + v->name + ")";
+
+		node->parents.push_back(v);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < size; ++i) {
+			value[i] = 1.0f / (1.0f + std::exp(-a->value[i]));
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < size; ++i) {
+			a->partial[i] += value[i] * (1.0f - value[i]) * partial[i];
+		}
+	}
+};
+
+Vec sigmoid(const Vec& v) {
+	return VecSigmoid::build(v);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct MatDotVec : Vector {
+
+	Mat a;
+	Vec b;
+
+	MatDotVec(size_t s = 0, float fillValue = 0.0f) {
+		size = s;
+		value = std::vector<float>(s, fillValue);
+		partial = std::vector<float>(s, 0.0f);
+	}
+
+	static Vec build(const Mat& m, const Vec& v) {
+
+		std::shared_ptr<MatDotVec> node = std::make_shared<MatDotVec>(m->rows);
+
+		node->a = m;
+		node->b = v;
+		node->name = "(" + m->name + " * " + v->name + ")";
+
+		node->parents.push_back(m);
+		node->parents.push_back(v);
+
+		return node;
+	}
+
+	void evaluate() override final {
+	//	value = std::vector<float>(size, 0.0f);
+
+		for (size_t i = 0; i < a->rows; ++i) {
+			value[i] = 0.0f;
+			for (size_t j = 0; j < a->cols; ++j) {
+				value[i] += a->value[i][j] * b->value[j];
+			}
+		}
+	}
+
+	void derive() override final {
+
+		for (size_t i = 0; i < a->rows; ++i) {
+			for (size_t j = 0; j < a->cols; ++j) {
+
+				// b->partial = A^T * partial
+				b->partial[j] += a->value[i][j] * partial[i];
+
+				a->partial[i][j] += b->value[j] * partial[i];
+			}
+		}
+	}
+};
+
+inline Vec operator * (const Mat& m, const Vec& v) {
+	return MatDotVec::build(m, v);
+}
+
+
+
+
+struct MatDotMat : Matrix {
+
+	Mat a, b;
+
+	MatDotMat(size_t rows = 0, size_t cols = 0, float fillValue = 0.0f) {
+		size = s;
+		value = std::vector<float>(s, fillValue);
+		partial = std::vector<float>(s, 0.0f);
+	}
+
+	static Vec build(const Mat& m1, const Vec& m2) {
+
+		std::shared_ptr<MatDotMat> node = std::make_shared<MatDotMat>(m1->rows, m2->cols);
+
+		node->a = m1;
+		node->b = m2;
+		node->name = "(" + m1->name + " * " + m2->name + ")";
+
+		node->parents.push_back(m1);
+		node->parents.push_back(m2);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < a->rows; ++i) {
+			std::fill(value[i].begin(), value[i].end(), 0.0f);
+		//	value[i][k] = 0.0f;
+			for (size_t j = 0; j < a->cols; ++j) {
+				for (size_t k = 0; k < b->cols; ++k) {
+					value[i][k] += a->value[i][j] * b->value[j][k];
+				}
+			}
+		}
+	}
+
+	void derive() override final {
+
+		// A: (n, p), B: (p, m), C: (n, m)
+
+		// b->partial = a->value^T * partial
+		// a->partial = partial * b->value^T
+
+		for (size_t i = 0; i < a->cols; ++i) {
+			for (size_t j = 0; j < a->rows; ++j) {
+				for (size_t k = 0; k < b->cols; ++k) {
+					b->partial[i][k] += a->value[j][i] * partial[j][k];
+				}
+			}
+		}
+
+		for (size_t i = 0; i < b->cols; ++i) {
+			for (size_t j = 0; j < a->rows; ++j) {
+				for (size_t k = 0; k < b->cols; ++k) {
+					a->partial[j][k] += partial[j][k] * b->value[j][i];
+				}
+			}
+		}
+	}
+};
+
+inline Mat operator * (const Mat& m1, const Mat& m2) {
+	return MatDotMat::build(m1, m2);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -16,17 +16,18 @@ struct Node : std::enable_shared_from_this<Node> {
 
 	}
 
-    virtual inline void evaluate() = 0;
-    virtual inline void derive() = 0;
+	virtual inline void evaluate() = 0;
+	virtual inline void derive() = 0;
+	virtual inline void resetPartial() = 0;
 
 
-    std::vector<std::shared_ptr<Node>> topologicalSort() {
-    	std::vector<std::shared_ptr<Node>> ordering;
+	std::vector<std::shared_ptr<Node>> topologicalSort() {
+		std::vector<std::shared_ptr<Node>> ordering;
 		std::unordered_set<std::shared_ptr<Node>> visited;
 
 		std::function<void(const std::shared_ptr<Node>&)> addChildren = [&](const std::shared_ptr<Node>& node) {
-			// if the node has no parents, we shouldn't need to either evaluate nor derive it
-			if (visited.find(node) != visited.end() || !node->parents.size()) {
+			// now we actually need "root" nodes because we need to reset their partials
+			if (visited.find(node) != visited.end()/* || !node->parents.size()*/) {
 				return;
 			}
 

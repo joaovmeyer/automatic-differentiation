@@ -527,13 +527,15 @@ struct MatDotMat : Matrix {
 
 	Mat a, b;
 
-	MatDotMat(size_t rows = 0, size_t cols = 0, float fillValue = 0.0f) {
-		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+	MatDotMat(size_t r = 0, size_t c = 0, float fillValue = 0.0f) {
+		rows = r;
+		cols = c;
+
+		value = std::vector<std::vector<float>>(r, std::vector<float>(c, fillValue));
+		partial = std::vector<std::vector<float>>(r, std::vector<float>(c, 0.0f));
 	}
 
-	static Vec build(const Mat& m1, const Vec& m2) {
+	static Mat build(const Mat& m1, const Mat& m2) {
 
 		std::shared_ptr<MatDotMat> node = std::make_shared<MatDotMat>(m1->rows, m2->cols);
 
@@ -548,12 +550,19 @@ struct MatDotMat : Matrix {
 	}
 
 	void evaluate() override final {
-		for (size_t i = 0; i < a->rows; ++i) {
+
+		size_t n = a->rows;
+		size_t p = a->cols;
+		size_t m = b->cols;
+
+		for (size_t i = 0; i < n; ++i) {
+
+			// reset i-th row
 			std::fill(value[i].begin(), value[i].end(), 0.0f);
-		//	value[i][k] = 0.0f;
-			for (size_t j = 0; j < a->cols; ++j) {
-				for (size_t k = 0; k < b->cols; ++k) {
-					value[i][k] += a->value[i][j] * b->value[j][k];
+
+			for (size_t k = 0; k < p; ++k) {
+				for (size_t j = 0; j < m; ++j) {
+					value[i][j] += a->value[i][k] * b->value[k][j];
 				}
 			}
 		}
@@ -561,23 +570,27 @@ struct MatDotMat : Matrix {
 
 	void derive() override final {
 
+		size_t n = a->rows;
+		size_t p = a->cols;
+		size_t m = b->cols;
+
 		// A: (n, p), B: (p, m), C: (n, m)
 
-		// b->partial = a->value^T * partial
 		// a->partial = partial * b->value^T
+		// b->partial = a->value^T * partial
 
-		for (size_t i = 0; i < a->cols; ++i) {
-			for (size_t j = 0; j < a->rows; ++j) {
-				for (size_t k = 0; k < b->cols; ++k) {
-					b->partial[i][k] += a->value[j][i] * partial[j][k];
+		for (size_t i = 0; i < n; ++i) {
+			for (size_t j = 0; j < p; ++j) {
+				for (size_t k = 0; k < m; ++k) {
+					a->partial[i][j] += partial[i][k] * b->value[j][k];
 				}
 			}
 		}
 
-		for (size_t i = 0; i < b->cols; ++i) {
-			for (size_t j = 0; j < a->rows; ++j) {
-				for (size_t k = 0; k < b->cols; ++k) {
-					a->partial[j][k] += partial[j][k] * b->value[j][i];
+		for (size_t i = 0; i < p; ++i) {
+			for (size_t k = 0; k < n; ++k) {
+				for (size_t j = 0; j < m; ++j) {
+					b->partial[i][j] += a->value[k][i] * partial[k][j];
 				}
 			}
 		}
@@ -592,9 +605,191 @@ inline Mat operator * (const Mat& m1, const Mat& m2) {
 
 
 
+struct TransposeMat : Matrix {
+
+	Mat a;
+
+	TransposeMat(size_t r = 0, size_t c = 0, float fillValue = 0.0f) {
+		rows = r;
+		cols = c;
+
+		value = std::vector<std::vector<float>>(r, std::vector<float>(c, fillValue));
+		partial = std::vector<std::vector<float>>(r, std::vector<float>(c, 0.0f));
+	}
+
+	static Mat build(const Mat& m) {
+
+		std::shared_ptr<TransposeMat> node = std::make_shared<TransposeMat>(m->cols, m->rows);
+
+		node->a = m;
+		node->name = m->name + "^T";
+
+		node->parents.push_back(m);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < rows; ++i) {
+			for (size_t j = 0; j < cols; ++j) {
+				value[i][j] = a->value[j][i];
+			}
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < rows; ++i) {
+			for (size_t j = 0; j < cols; ++j) {
+				partial[i][j] += a->partial[j][i];
+			}
+		}
+	}
+};
+
+inline Mat transpose(const Mat& m) {
+	return TransposeMat::build(m);
+}
 
 
 
+
+
+struct MatPlusVec : Matrix {
+
+	Mat a;
+	Vec b;
+
+	MatPlusVec(size_t r = 0, size_t c = 0, float fillValue = 0.0f) {
+		rows = r;
+		cols = c;
+
+		value = std::vector<std::vector<float>>(r, std::vector<float>(c, fillValue));
+		partial = std::vector<std::vector<float>>(r, std::vector<float>(c, 0.0f));
+	}
+
+	static Mat build(const Mat& m, const Mat& v) {
+
+		std::shared_ptr<MatPlusVec> node = std::make_shared<MatPlusVec>(m->rows, m->cols);
+
+		node->a = m;
+		node->b = v;
+		node->name = "(" + m->name + " - " + v->name + ")";
+
+		node->parents.push_back(m);
+		node->parents.push_back(v);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < rows; ++i) {
+			for (size_t j = 0; j < cols; ++j) {
+				value[i][j] = a->value[i][j] + b->value[i];
+			}
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < rows; ++i) {
+			for (size_t j = 0; j < cols; ++j) {
+				a->partial[i][j] += partial[i][j];
+				b->partial[i] += partial[i][j];
+			}
+		}
+	}
+};
+
+inline Mat transpose(const Mat& m) {
+	return MatPlusVec::build(m);
+}
+
+
+
+
+
+
+
+
+
+
+
+struct MatMinusMat : Matrix {
+
+	Mat a, b;
+
+	MatMinusMat(size_t r = 0, size_t c = 0, float fillValue = 0.0f) {
+		rows = r;
+		cols = c;
+
+		value = std::vector<std::vector<float>>(r, std::vector<float>(c, fillValue));
+		partial = std::vector<std::vector<float>>(r, std::vector<float>(c, 0.0f));
+	}
+
+	static Mat build(const Mat& m1, const Mat& m2) {
+
+		std::shared_ptr<MatMinusMat> node = std::make_shared<MatMinusMat>(m1->rows, m2->cols);
+
+		node->a = m1;
+		node->b = m2;
+		node->name = "(" + m1->name + " * " + m2->name + ")";
+
+		node->parents.push_back(m1);
+		node->parents.push_back(m2);
+
+		return node;
+	}
+
+	void evaluate() override final {
+
+		size_t n = a->rows;
+		size_t p = a->cols;
+		size_t m = b->cols;
+
+		for (size_t i = 0; i < n; ++i) {
+
+			// reset i-th row
+			std::fill(value[i].begin(), value[i].end(), 0.0f);
+
+			for (size_t k = 0; k < p; ++k) {
+				for (size_t j = 0; j < m; ++j) {
+					value[i][j] += a->value[i][k] * b->value[k][j];
+				}
+			}
+		}
+	}
+
+	void derive() override final {
+
+		size_t n = a->rows;
+		size_t p = a->cols;
+		size_t m = b->cols;
+
+		// A: (n, p), B: (p, m), C: (n, m)
+
+		// a->partial = partial * b->value^T
+		// b->partial = a->value^T * partial
+
+		for (size_t i = 0; i < n; ++i) {
+			for (size_t j = 0; j < p; ++j) {
+				for (size_t k = 0; k < m; ++k) {
+					a->partial[i][j] += partial[i][k] * b->value[j][k];
+				}
+			}
+		}
+
+		for (size_t i = 0; i < p; ++i) {
+			for (size_t k = 0; k < n; ++k) {
+				for (size_t j = 0; j < m; ++j) {
+					b->partial[i][j] += a->value[k][i] * partial[k][j];
+				}
+			}
+		}
+	}
+};
+
+inline Mat operator - (const Mat& m1, const Mat& m2) {
+	return MatMinusMat::build(m1, m2);
+}
 
 
 

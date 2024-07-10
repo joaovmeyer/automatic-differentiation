@@ -224,6 +224,10 @@ inline Var operator + (const Var& v, float f) {
 	return Add::build(v, Scalar::build(f));
 }
 
+inline Var operator * (const Var& v, float f) {
+	return Mult::build(v, Scalar::build(f));
+}
+
 inline Var operator / (float f, const Var& v) {
 	return Div::build(Scalar::build(f), v);
 }
@@ -451,6 +455,56 @@ Vec sigmoid(const Vec& v) {
 
 
 
+struct MatSigmoid : Matrix {
+
+	Mat a;
+
+	MatSigmoid(size_t r = 0, size_t c = 0, float fillValue = 0.0f) {
+		rows = r;
+		cols = c;
+
+		value = std::vector<std::vector<float>>(r, std::vector<float>(c, fillValue));
+		partial = std::vector<std::vector<float>>(r, std::vector<float>(c, 0.0f));
+	}
+
+	static Mat build(const Mat& m) {
+
+		std::shared_ptr<MatSigmoid> node = std::make_shared<MatSigmoid>(m->rows, m->cols);
+
+		node->a = m;
+		node->name = "sigmoid(" + m->name + ")";
+
+		node->parents.push_back(m);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < a->rows; ++i) {
+			for (size_t j = 0; j < a->cols; ++j) {
+				value[i][j] = 1.0f / (1.0f + std::exp(-a->value[i][j]));
+			}
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < a->rows; ++i) {
+			for (size_t j = 0; j < a->cols; ++j) {
+				a->partial[i][j] += value[i][j] * (1.0f - value[i][j]) * partial[i][j];
+			}
+		}
+	}
+};
+
+Mat sigmoid(const Mat& m) {
+	return MatSigmoid::build(m);
+}
+
+
+
+
+
+
 
 
 
@@ -653,7 +707,7 @@ inline Mat transpose(const Mat& m) {
 
 
 
-
+// adds the vec to every column of the matrix
 struct MatPlusVec : Matrix {
 
 	Mat a;
@@ -667,7 +721,7 @@ struct MatPlusVec : Matrix {
 		partial = std::vector<std::vector<float>>(r, std::vector<float>(c, 0.0f));
 	}
 
-	static Mat build(const Mat& m, const Mat& v) {
+	static Mat build(const Mat& m, const Vec& v) {
 
 		std::shared_ptr<MatPlusVec> node = std::make_shared<MatPlusVec>(m->rows, m->cols);
 
@@ -699,8 +753,8 @@ struct MatPlusVec : Matrix {
 	}
 };
 
-inline Mat transpose(const Mat& m) {
-	return MatPlusVec::build(m);
+inline Mat operator + (const Mat& m, const Vec& v) {
+	return MatPlusVec::build(m, v);
 }
 
 
@@ -727,11 +781,11 @@ struct MatMinusMat : Matrix {
 
 	static Mat build(const Mat& m1, const Mat& m2) {
 
-		std::shared_ptr<MatMinusMat> node = std::make_shared<MatMinusMat>(m1->rows, m2->cols);
+		std::shared_ptr<MatMinusMat> node = std::make_shared<MatMinusMat>(m1->rows, m1->cols);
 
 		node->a = m1;
 		node->b = m2;
-		node->name = "(" + m1->name + " * " + m2->name + ")";
+		node->name = "(" + m1->name + " - " + m2->name + ")";
 
 		node->parents.push_back(m1);
 		node->parents.push_back(m2);
@@ -740,48 +794,18 @@ struct MatMinusMat : Matrix {
 	}
 
 	void evaluate() override final {
-
-		size_t n = a->rows;
-		size_t p = a->cols;
-		size_t m = b->cols;
-
-		for (size_t i = 0; i < n; ++i) {
-
-			// reset i-th row
-			std::fill(value[i].begin(), value[i].end(), 0.0f);
-
-			for (size_t k = 0; k < p; ++k) {
-				for (size_t j = 0; j < m; ++j) {
-					value[i][j] += a->value[i][k] * b->value[k][j];
-				}
+		for (size_t i = 0; i < a->rows; ++i) {
+			for (size_t j = 0; j < a->cols; ++j) {
+				value[i][j] = a->value[i][j] - b->value[i][j];
 			}
 		}
 	}
 
 	void derive() override final {
-
-		size_t n = a->rows;
-		size_t p = a->cols;
-		size_t m = b->cols;
-
-		// A: (n, p), B: (p, m), C: (n, m)
-
-		// a->partial = partial * b->value^T
-		// b->partial = a->value^T * partial
-
-		for (size_t i = 0; i < n; ++i) {
-			for (size_t j = 0; j < p; ++j) {
-				for (size_t k = 0; k < m; ++k) {
-					a->partial[i][j] += partial[i][k] * b->value[j][k];
-				}
-			}
-		}
-
-		for (size_t i = 0; i < p; ++i) {
-			for (size_t k = 0; k < n; ++k) {
-				for (size_t j = 0; j < m; ++j) {
-					b->partial[i][j] += a->value[k][i] * partial[k][j];
-				}
+		for (size_t i = 0; i < a->rows; ++i) {
+			for (size_t j = 0; j < a->cols; ++j) {
+				a->partial[i][j] += partial[i][j];
+				b->partial[i][j] -= partial[i][j];
 			}
 		}
 	}
@@ -789,6 +813,116 @@ struct MatMinusMat : Matrix {
 
 inline Mat operator - (const Mat& m1, const Mat& m2) {
 	return MatMinusMat::build(m1, m2);
+}
+
+
+
+
+
+
+
+
+
+struct MatHadamardMat : Matrix {
+
+	Mat a, b;
+
+	MatHadamardMat(size_t r = 0, size_t c = 0, float fillValue = 0.0f) {
+		rows = r;
+		cols = c;
+
+		value = std::vector<std::vector<float>>(r, std::vector<float>(c, fillValue));
+		partial = std::vector<std::vector<float>>(r, std::vector<float>(c, 0.0f));
+	}
+
+	static Mat build(const Mat& m1, const Mat& m2) {
+
+		std::shared_ptr<MatHadamardMat> node = std::make_shared<MatHadamardMat>(m1->rows, m1->cols);
+
+		node->a = m1;
+		node->b = m2;
+		node->name = "hadamard(" + m1->name + ", " + m2->name + ")";
+
+		node->parents.push_back(m1);
+		node->parents.push_back(m2);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < a->rows; ++i) {
+			for (size_t j = 0; j < a->cols; ++j) {
+				value[i][j] = a->value[i][j] * b->value[i][j];
+			}
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < a->rows; ++i) {
+			for (size_t j = 0; j < a->cols; ++j) {
+				a->partial[i][j] += b->value[i][j] * partial[i][j];
+				b->partial[i][j] += a->value[i][j] * partial[i][j];
+			}
+		}
+	}
+};
+
+inline Mat hadamard(const Mat& m1, const Mat& m2) {
+	return MatHadamardMat::build(m1, m2);
+}
+
+
+
+
+
+
+
+
+
+
+
+struct MatSum : Scalar {
+
+	Mat a;
+
+	MatSum() {
+
+	}
+
+	static Var build(const Mat& m) {
+
+		std::shared_ptr<MatSum> node = std::make_shared<MatSum>();
+
+		node->a = m;
+		node->name = "sum(" + m->name + ")";
+
+		node->parents.push_back(m);
+
+		return node;
+	}
+
+	void evaluate() override final {
+
+		value = 0.0f;
+
+		for (size_t i = 0; i < a->rows; ++i) {
+			for (size_t j = 0; j < a->cols; ++j) {
+				value += a->value[i][j];
+			}
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < a->rows; ++i) {
+			for (size_t j = 0; j < a->cols; ++j) {
+				a->partial[i][j] += partial;
+			}
+		}
+	}
+};
+
+inline Var sum(const Mat& m) {
+	return MatSum::build(m);
 }
 
 

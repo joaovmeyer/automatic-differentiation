@@ -9,49 +9,46 @@ using namespace std;
 
 int main() {
 
+	int hiddenSize = 2;
+
 	// first layer
-	Mat W1 = Matrix::build(2, 2, 0.0f, "W1");
-	Vec b1 = Vector::build(2, 0.1f, "b1");
+	Mat W1 = Matrix::build(hiddenSize, 2, 0.0f);
+	Vec b1 = Vector::build(hiddenSize, 0.1f);
 
 	// second layer
-	Mat W2 = Matrix::build(1, 2, 0.0f, "W2");
-	Vec b2 = Vector::build(1, 0.1f, "b2");
+	Mat W2 = Matrix::build(1, hiddenSize, 0.0f);
+	Vec b2 = Vector::build(1, 0.1f);
 
 	// initialize weights;
-	for (int i = 0; i < 2; ++i) {
-		for (int j = 0; j < 2; ++j) {
-			W1->value[i][j] = rng::fromNormalDistribution(0.0, 0.5);
+	for (int i = 0; i < W1->rows; ++i) {
+		for (int j = 0; j < W1->cols; ++j) {
+			W1->value[i][j] = rng::fromNormalDistribution(0.0, 1.0);
 		}
-		W2->value[0][i] = rng::fromNormalDistribution(0.0, 0.5);;
+		W2->value[0][i] = rng::fromNormalDistribution(0.0, 1.0);
 	}
 
-	Vec x = Vector::build(2, 0.0f, "x");
-	Vec y = Vector::build(1, 0.0f, "y");
+	int batchSize = 4;
 
-	Vec out1 = tanh(W1 * x + b1);
-	Vec out2 = tanh(W2 * out1 + b1);
+	Mat x = Matrix::build(2, batchSize, 0.0f);
+	Mat y = Matrix::build(1, batchSize, 0.0f);
 
-	Vec err = (out2 - y);
-	Var loss = err * err;
+	Mat out1 = sigmoid(W1 * x + b1);
+	Mat out2 = sigmoid(W2 * out1 + b2);
 
-	vector<vector<float>> X = {
-		{ 0.0f, 0.0f },
-		{ 1.0f, 0.0f },
-		{ 0.0f, 1.0f },
-		{ 1.0f, 1.0f }
-	};
-	vector<vector<float>> Y = {
-		{ 0.0f },
-		{ 1.0f },
-		{ 1.0f },
-		{ 0.0f }
+	Mat err = (out2 - y);
+	Var loss = sum(hadamard(err, err)); // MSE
+
+	x->value = {
+		{ 0.0f, 0.0f, 1.0f, 1.0f },
+		{ 0.0f, 1.0f, 0.0f, 1.0f }
 	};
 
-	float lr = -0.03f;
-	for (int iter = 0; iter < 100000; ++iter) {
+	y->value = {
+		{ 0.0f, 1.0f, 1.0f, 0.0f }
+	};
 
-		x->value = X[iter % X.size()];
-		y->value = Y[iter % Y.size()];
+	float lr = -5.0f;
+	for (int iter = 0; iter < 25000; ++iter) {
 
 		loss->calculateDerivatives();
 
@@ -62,14 +59,9 @@ int main() {
 		b2->value += b2->partial * lr;
 	}
 
-	for (size_t i = 0; i < X.size(); ++i) {
-		x->value = X[i];
-		y->value = Y[i];
-
-		out2->calculateDerivatives();
-
-		cout << "Expected result: " << y->value << ", got: " << out2->value << "\n";
-	}
+	loss->eval();
+	cout << "Expected result: " << y->value << ", got: " << out2->value << "\n";
+	cout << "MSE: " << loss->value << "\n";
 
 	return 0;
 }

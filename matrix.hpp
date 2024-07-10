@@ -1,6 +1,7 @@
 #ifndef MATRIX_HPP
 #define MATRIX_HPP
 
+#include "../rng.h"
 #include "node.hpp"
 
 #include <iostream>
@@ -25,6 +26,30 @@ std::vector<std::vector<float>> operator * (const std::vector<std::vector<float>
 	return ans;
 }
 
+std::ostream& operator << (std::ostream& os, const std::vector<std::vector<float>>& m) {
+
+	for (size_t i = 0; i < m.size(); ++i) {
+
+		os << "(";
+
+		for (size_t j = 0; j < m[i].size(); ++j) {
+			os << m[i][j];
+
+			if (j + 1 < m[i].size()) {
+				os << ", ";
+			}
+		}
+
+		os << ")";
+
+		if (i + 1 < m.size()) {
+			os << "\n";
+		}
+	}
+
+	return os;
+}
+
 
 struct Matrix : Node {
 
@@ -41,6 +66,19 @@ struct Matrix : Node {
 
 	static std::shared_ptr<Matrix> build(size_t r = 0, size_t c = 0, float fillValue = 0.0f, const std::string& n = "") {
 		return std::make_shared<Matrix>(r, c, fillValue, n);
+	}
+
+	static std::shared_ptr<Matrix> makeRandom(size_t r = 0, size_t c = 0, double mean = 0.0, double stddev = 1.0, const std::string& n = "") {
+
+		std::shared_ptr<Matrix> mat = std::make_shared<Matrix>(r, c, 0.0f, n);
+
+		for (size_t i = 0; i < r; ++i) {
+			for (size_t j = 0; j < c; ++j) {
+				mat->value[i][j] = rng::fromNormalDistribution(mean, stddev);
+			}
+		}
+
+		return mat;
 	}
 
 	void evaluate() override {

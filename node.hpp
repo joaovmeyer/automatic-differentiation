@@ -7,14 +7,20 @@
 #include <unordered_set>
 #include <functional>
 
+// using the function's name can be helpfull for debugging, but sometimes it can break everything
+// in the GRU implementation, the functions names were getting REALLY big, bigger than my RAM,
+// so in this case it's best to avoid using the name at all
+#define USE_NAME false
 
 struct Node : std::enable_shared_from_this<Node> {
 	std::vector<std::shared_ptr<Node>> parents;
-	std::string name;
 
-	Node(const std::string& n = "") : name(n) {
-
-	}
+	#if USE_NAME
+		std::string name;
+		Node(const std::string& n = "") : name(n) {}
+	#else
+		Node(const std::string& n = "") {}
+	#endif
 
 	virtual inline void evaluate() = 0;
 	virtual inline void derive() = 0;
@@ -26,8 +32,8 @@ struct Node : std::enable_shared_from_this<Node> {
 		std::unordered_set<std::shared_ptr<Node>> visited;
 
 		std::function<void(const std::shared_ptr<Node>&)> addChildren = [&](const std::shared_ptr<Node>& node) {
-			// now we actually need "root" nodes because we need to reset their partials
-			if (visited.find(node) != visited.end()/* || !node->parents.size()*/) {
+			// already handled this node
+			if (visited.find(node) != visited.end()) {
 				return;
 			}
 
@@ -44,6 +50,14 @@ struct Node : std::enable_shared_from_this<Node> {
 		addChildren(shared_from_this());
 
 		return ordering;
+	}
+
+	void eval() {
+		std::vector<std::shared_ptr<Node>> ordering = topologicalSort();
+
+		for (size_t i = 0; i < ordering.size(); ++i) {
+			ordering[i]->evaluate();
+		}
 	}
 };
 

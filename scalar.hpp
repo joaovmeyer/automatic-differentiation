@@ -3,8 +3,6 @@
 
 #include "node.hpp"
 
-#include <iostream>
-
 
 struct Scalar : Node {
 
@@ -12,7 +10,9 @@ struct Scalar : Node {
 	float partial;
 
 	Scalar(float v = 0.0f, const std::string& n = "") : value(v), partial(0.0f) {
-		name = (n == "") ? std::to_string(v) : n;
+		#if USE_NAME
+			name = (n == "") ? std::to_string(v) : n;
+		#endif
 	}
 
 	static std::shared_ptr<Scalar> build(float v = 0.0f, const std::string& n = "") {
@@ -39,7 +39,7 @@ struct Scalar : Node {
 			ordering[i]->resetPartial();
 		}
 
-		partial = 1.0; // dx/dx is 1 for whatever x
+		partial = 1.0f; // dx/dx is 1 for whatever x
 		for (size_t i = ordering.size(); i > 0; --i) {
 			ordering[i - 1]->derive();
 		}

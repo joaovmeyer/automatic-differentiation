@@ -7,7 +7,7 @@
 #include <iostream>
 
 
-void operator += (std::vector<std::vector<float>>& m1, const std::vector<std::vector<float>>& m2) {
+inline void operator += (std::vector<std::vector<float>>& m1, const std::vector<std::vector<float>>& m2) {
 	for (size_t i = 0; i < m1.size(); ++i) {
 		for (size_t j = 0; j < m1[0].size(); ++j) {
 			m1[i][j] += m2[i][j];
@@ -15,7 +15,7 @@ void operator += (std::vector<std::vector<float>>& m1, const std::vector<std::ve
 	}
 }
 
-std::vector<std::vector<float>> operator * (const std::vector<std::vector<float>>& m, float a) {
+inline std::vector<std::vector<float>> operator * (const std::vector<std::vector<float>>& m, float a) {
 	std::vector<std::vector<float>> ans = m;
 	for (size_t i = 0; i < m.size(); ++i) {
 		for (size_t j = 0; j < m[0].size(); ++j) {
@@ -60,8 +60,9 @@ struct Matrix : Node {
 	Matrix(size_t r = 0, size_t c = 0, float fillValue = 0.0f, const std::string& n = "") : rows(r), cols(c), 
 		value(std::vector<std::vector<float>>(r, std::vector<float>(c, fillValue))), partial(std::vector<std::vector<float>>(r, std::vector<float>(c, 0.0f))) {
 
-		// gave up trying to give a kinda nice name to it
-		name = n;
+		#if USE_NAME
+			name = n;
+		#endif
 	}
 
 	static std::shared_ptr<Matrix> build(size_t r = 0, size_t c = 0, float fillValue = 0.0f, const std::string& n = "") {
@@ -103,7 +104,11 @@ struct Matrix : Node {
 			ordering[i]->resetPartial();
 		}
 
-		partial = std::vector<std::vector<float>>(rows, std::vector<float>(cols, 1.0f)); // dx/dx is 1 for whatever x
+		// dx/dx is 1 for whatever x
+		for (size_t i = 0; i < rows; ++i) {
+			std::fill(partial[i].begin(), partial[i].end(), 1.0f);
+		}
+
 		for (size_t i = ordering.size(); i > 0; --i) {
 			ordering[i - 1]->derive();
 		}

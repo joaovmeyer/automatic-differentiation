@@ -6,13 +6,13 @@
 #include <iostream>
 
 
-void operator += (std::vector<float>& v1, const std::vector<float>& v2) {
+inline void operator += (std::vector<float>& v1, const std::vector<float>& v2) {
 	for (size_t i = 0; i < v1.size(); ++i) {
 		v1[i] += v2[i];
 	}
 }
 
-std::vector<float> operator * (const std::vector<float>& v, float a) {
+inline std::vector<float> operator * (const std::vector<float>& v, float a) {
 	std::vector<float> ans = v;
 	for (size_t i = 0; i < ans.size(); ++i) {
 		ans[i] *= a;
@@ -46,18 +46,22 @@ struct Vector : Node {
 	std::vector<float> partial;
 
 	Vector(size_t s = 0, float fillValue = 0.0f, const std::string& n = "") : size(s), value(std::vector<float>(s, fillValue)), partial(std::vector<float>(s, 0.0f)) {
-		if (n == "") {
-			name = "(";
-			for (size_t i = 0; i < s; ++i) {
-				name += std::to_string(fillValue) + ", ";
+		
+		#if USE_NAME
+			if (n == "") {
+				name = "(";
+				for (size_t i = 0; i < s; ++i) {
+					name += std::to_string(fillValue) + ", ";
+				}
+
+				// remove the last ", "
+				if (s > 0) name.pop_back(); name.pop_back();
+
+				name += ")";
+			} else {
+				name = n;
 			}
-
-			if (s > 0) name.pop_back(); name.pop_back();
-
-			name += ")";
-		} else {
-			name = n;
-		}
+		#endif
 	}
 
 	static std::shared_ptr<Vector> build(size_t s = 0, float fillValue = 0.0f, const std::string& n = "") {
@@ -85,7 +89,7 @@ struct Vector : Node {
 			ordering[i]->resetPartial();
 		}
 
-		partial = std::vector<float>(size, 1.0f); // dx/dx is 1 for whatever x
+		std::fill(partial.begin(), partial.end(), 1.0f); // dx/dx is 1 for whatever x
 		for (size_t i = ordering.size(); i > 0; --i) {
 			ordering[i - 1]->derive();
 		}

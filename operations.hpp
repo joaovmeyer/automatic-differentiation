@@ -19,7 +19,9 @@ struct Add : Scalar {
 
 		node->a = v1;
 		node->b = v2;
-		node->name = "(" + v1->name + " + " + v2->name + ")";
+		#if USE_NAME
+			node->name = "(" + v1->name + " + " + v2->name + ")";
+		#endif
 
 		node->parents.push_back(v1);
 		node->parents.push_back(v2);
@@ -49,8 +51,10 @@ struct Mult : Scalar {
 
 		node->a = v1;
 		node->b = v2;
-		node->name = "(" + v1->name + " * " + v2->name + ")";
-
+		#if USE_NAME
+			node->name = "(" + v1->name + " * " + v2->name + ")";
+		#endif
+		
 		node->parents.push_back(v1);
 		node->parents.push_back(v2);
 
@@ -78,7 +82,9 @@ struct Sin : Scalar {
 		std::shared_ptr<Sin> node = std::make_shared<Sin>();
 
 		node->a = v;
-		node->name = "sin(" + v->name + ")";
+		#if USE_NAME
+			node->name = "sin(" + v->name + ")";
+		#endif
 
 		node->parents.push_back(v);
 
@@ -105,7 +111,9 @@ struct Cos : Scalar {
 		std::shared_ptr<Cos> node = std::make_shared<Cos>();
 
 		node->a = v;
-		node->name = "cos(" + v->name + ")";
+		#if USE_NAME
+			node->name = "cos(" + v->name + ")";
+		#endif
 
 		node->parents.push_back(v);
 
@@ -132,7 +140,9 @@ struct Exp : Scalar {
 		std::shared_ptr<Exp> node = std::make_shared<Exp>();
 
 		node->a = v;
-		node->name = "exp(" + v->name + ")";
+		#if USE_NAME
+			node->name = "exp(" + v->name + ")";
+		#endif
 
 		node->parents.push_back(v);
 
@@ -159,7 +169,9 @@ struct Ln : Scalar {
 		std::shared_ptr<Ln> node = std::make_shared<Ln>();
 
 		node->a = v;
-		node->name = "ln(" + v->name + ")";
+		#if USE_NAME
+			node->name = "ln(" + v->name + ")";
+		#endif
 
 		node->parents.push_back(v);
 
@@ -187,7 +199,9 @@ struct Div : Scalar {
 
 		node->a = v1;
 		node->b = v2;
-		node->name = "(" + v1->name + " / " + v2->name + ")";
+		#if USE_NAME
+			node->name = "(" + v1->name + " / " + v2->name + ")";
+		#endif
 
 		node->parents.push_back(v1);
 		node->parents.push_back(v2);
@@ -250,7 +264,9 @@ struct VecDotVec : Scalar {
 
 		node->a = v1;
 		node->b = v2;
-		node->name = "(" + v1->name + " * " + v2->name + ")";
+		#if USE_NAME
+			node->name = "(" + v1->name + " * " + v2->name + ")";
+		#endif
 
 		node->parents.push_back(v1);
 		node->parents.push_back(v2);
@@ -280,6 +296,55 @@ inline Var operator * (const Vec& v1, const Vec& v2) {
 
 
 
+struct VecHadamardVec : Vector {
+
+	Vec a, b;
+
+	VecHadamardVec(size_t s = 0, float fillValue = 0.0f) {
+		size = s;
+		value = std::vector<float>(s, fillValue);
+		partial = std::vector<float>(s, 0.0f);
+	}
+
+	static Vec build(const Vec& v1, const Vec& v2) {
+
+		std::shared_ptr<VecHadamardVec> node = std::make_shared<VecHadamardVec>(v1->size);
+
+		node->a = v1;
+		node->b = v2;
+		#if USE_NAME
+			node->name = "hadamard(" + v1->name + ", " + v2->name + ")";
+		#endif
+
+		node->parents.push_back(v1);
+		node->parents.push_back(v2);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < a->size; ++i) {
+			value[i] = a->value[i] * b->value[i];
+		}
+	}
+
+	void derive() override final {
+
+		for (size_t i = 0; i < size; ++i) {
+			a->partial[i] += b->value[i] * partial[i];
+			b->partial[i] += a->value[i] * partial[i];
+		}
+	}
+};
+
+inline Vec hadamard(const Vec& v1, const Vec& v2) {
+	return VecHadamardVec::build(v1, v2);
+}
+
+
+
+
+
 
 struct VecMinusVec : Vector {
 
@@ -297,7 +362,9 @@ struct VecMinusVec : Vector {
 
 		node->a = v1;
 		node->b = v2;
-		node->name = "(" + v1->name + " - " + v2->name + ")";
+		#if USE_NAME
+			node->name = "(" + v1->name + " - " + v2->name + ")";
+		#endif
 
 		node->parents.push_back(v1);
 		node->parents.push_back(v2);
@@ -340,7 +407,9 @@ struct VecPlusVec : Vector {
 
 		node->a = v1;
 		node->b = v2;
-		node->name = "(" + v1->name + " + " + v2->name + ")";
+		#if USE_NAME
+			node->name = "(" + v1->name + " + " + v2->name + ")";
+		#endif
 
 		node->parents.push_back(v1);
 		node->parents.push_back(v2);
@@ -384,7 +453,9 @@ struct VecTanh : Vector {
 		std::shared_ptr<VecTanh> node = std::make_shared<VecTanh>(v->size);
 
 		node->a = v;
-		node->name = "tanh(" + v->name + ")";
+		#if USE_NAME
+			node->name = "tanh(" + v->name + ")";
+		#endif
 
 		node->parents.push_back(v);
 
@@ -426,7 +497,9 @@ struct VecSigmoid : Vector {
 		std::shared_ptr<VecSigmoid> node = std::make_shared<VecSigmoid>(v->size);
 
 		node->a = v;
-		node->name = "sigmoid(" + v->name + ")";
+		#if USE_NAME
+			node->name = "sigmoid(" + v->name + ")";
+		#endif
 
 		node->parents.push_back(v);
 
@@ -472,7 +545,9 @@ struct MatSigmoid : Matrix {
 		std::shared_ptr<MatSigmoid> node = std::make_shared<MatSigmoid>(m->rows, m->cols);
 
 		node->a = m;
-		node->name = "sigmoid(" + m->name + ")";
+		#if USE_NAME
+			node->name = "sigmoid(" + m->name + ")";
+		#endif
 
 		node->parents.push_back(m);
 
@@ -537,7 +612,9 @@ struct MatDotVec : Vector {
 
 		node->a = m;
 		node->b = v;
-		node->name = "(" + m->name + " * " + v->name + ")";
+		#if USE_NAME
+			node->name = "(" + m->name + " * " + v->name + ")";
+		#endif
 
 		node->parents.push_back(m);
 		node->parents.push_back(v);
@@ -595,7 +672,9 @@ struct MatDotMat : Matrix {
 
 		node->a = m1;
 		node->b = m2;
-		node->name = "(" + m1->name + " * " + m2->name + ")";
+		#if USE_NAME
+			node->name = "(" + m1->name + " * " + m2->name + ")";
+		#endif
 
 		node->parents.push_back(m1);
 		node->parents.push_back(m2);
@@ -676,7 +755,9 @@ struct TransposeMat : Matrix {
 		std::shared_ptr<TransposeMat> node = std::make_shared<TransposeMat>(m->cols, m->rows);
 
 		node->a = m;
-		node->name = m->name + "^T";
+		#if USE_NAME
+			node->name = m->name + "^T";
+		#endif
 
 		node->parents.push_back(m);
 
@@ -727,7 +808,9 @@ struct MatPlusVec : Matrix {
 
 		node->a = m;
 		node->b = v;
-		node->name = "(" + m->name + " - " + v->name + ")";
+		#if USE_NAME
+			node->name = "(" + m->name + " - " + v->name + ")";
+		#endif
 
 		node->parents.push_back(m);
 		node->parents.push_back(v);
@@ -785,7 +868,9 @@ struct MatMinusMat : Matrix {
 
 		node->a = m1;
 		node->b = m2;
-		node->name = "(" + m1->name + " - " + m2->name + ")";
+		#if USE_NAME
+			node->name = "(" + m1->name + " - " + m2->name + ")";
+		#endif
 
 		node->parents.push_back(m1);
 		node->parents.push_back(m2);
@@ -841,7 +926,9 @@ struct MatHadamardMat : Matrix {
 
 		node->a = m1;
 		node->b = m2;
-		node->name = "hadamard(" + m1->name + ", " + m2->name + ")";
+		#if USE_NAME
+			node->name = "hadamard(" + m1->name + ", " + m2->name + ")";
+		#endif
 
 		node->parents.push_back(m1);
 		node->parents.push_back(m2);
@@ -894,7 +981,9 @@ struct MatSum : Scalar {
 		std::shared_ptr<MatSum> node = std::make_shared<MatSum>();
 
 		node->a = m;
-		node->name = "sum(" + m->name + ")";
+		#if USE_NAME
+			node->name = "sum(" + m->name + ")";
+		#endif
 
 		node->parents.push_back(m);
 

@@ -1,5 +1,6 @@
 
 #include "operations.hpp"
+#include "optimizer.hpp"
 #include "../rng.h"
 
 #include <iostream>
@@ -12,12 +13,12 @@ int main() {
 	int hiddenSize = 2;
 
 	// first layer
-	Mat W1 = Matrix::build(hiddenSize, 2, 0.0f);
-	Vec b1 = Vector::build(hiddenSize, 0.1f);
+	Mat W1 = Matrix::build(hiddenSize, 2, 0.0f, true);
+	Vec b1 = Vector::build(hiddenSize, 0.1f, true);
 
 	// second layer
-	Mat W2 = Matrix::build(1, hiddenSize, 0.0f);
-	Vec b2 = Vector::build(1, 0.1f);
+	Mat W2 = Matrix::build(1, hiddenSize, 0.0f, true);
+	Vec b2 = Vector::build(1, 0.1f, true);
 
 	// initialize weights;
 	for (int i = 0; i < W1->rows; ++i) {
@@ -47,16 +48,16 @@ int main() {
 		{ 0.0f, 1.0f, 1.0f, 0.0f }
 	};
 
+
+	SGDMomentum optimizer(loss, 0.7f, 4.0f);
+
+
 	float lr = -5.0f;
-	for (int iter = 0; iter < 25000; ++iter) {
+	for (int iter = 0; iter < 500; ++iter) {
 
 		loss->calculateDerivatives();
 
-		W1->value += W1->partial * lr;
-		b1->value += b1->partial * lr;
-
-		W2->value += W2->partial * lr;
-		b2->value += b2->partial * lr;
+		optimizer.step();
 	}
 
 	loss->eval();

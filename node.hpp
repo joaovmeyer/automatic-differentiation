@@ -7,13 +7,16 @@
 #include <unordered_set>
 #include <functional>
 
+
 // using the function's name can be helpfull for debugging, but sometimes it can break everything
 // in the GRU implementation, the functions names were getting REALLY big, bigger than my RAM,
 // so in this case it's best to avoid using the name at all
 #define USE_NAME false
 
+
 struct Node : std::enable_shared_from_this<Node> {
 	std::vector<std::shared_ptr<Node>> parents;
+	bool isTrainable;
 
 	#if USE_NAME
 		std::string name;
@@ -22,9 +25,16 @@ struct Node : std::enable_shared_from_this<Node> {
 		Node(const std::string& n = "") {}
 	#endif
 
+	enum NodeTypes {
+		SCALAR,
+		VECTOR,
+		MATRIX
+	};
+
 	virtual inline void evaluate() = 0;
 	virtual inline void derive() = 0;
 	virtual inline void resetPartial() = 0;
+	virtual inline NodeTypes getType() = 0;
 
 
 	std::vector<std::shared_ptr<Node>> topologicalSort() {

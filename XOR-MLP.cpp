@@ -49,7 +49,7 @@ int main() {
 	};
 
 
-	SGDMomentum optimizer(loss, 0.7f, 4.0f);
+	Optimizer<Momentum> optimizer(loss, 2.0f, 0.7f);
 
 
 	float lr = -5.0f;

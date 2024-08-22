@@ -100,4 +100,93 @@ struct Momentum {
 
 
 
+
+ScalarType sqrt(const ScalarType& a) {
+	return std::sqrt(a);
+}
+VectorType sqrt(VectorType a) {
+
+	for (size_t i = 0; i < a.size(); ++i) {
+		a[i] = std::sqrt(a[i]);
+	}
+
+	return a;
+}
+MatrixType sqrt(MatrixType a) {
+
+	for (size_t i = 0; i < a.size(); ++i) {
+		for (size_t j = 0; j < a[0].size(); ++j) {
+			a[i][j] = std::sqrt(a[i][j]);
+		}
+	}
+
+	return a;
+}
+
+
+ScalarType hadamard(const ScalarType& a, const ScalarType& b) {
+	return a * b;
+}
+VectorType hadamard(VectorType a, const VectorType& b) {
+
+	for (size_t i = 0; i < a.size(); ++i) {
+		a[i] *= b[i];
+	}
+
+	return a;
+}
+MatrixType hadamard(MatrixType a, const MatrixType& b) {
+
+	for (size_t i = 0; i < a.size(); ++i) {
+		for (size_t j = 0; j < a[0].size(); ++j) {
+			a[i][j] *= b[i][j];
+		}
+	}
+
+	return a;
+}
+
+
+// division for adagrad special
+ScalarType div(float n, const ScalarType& a) {
+	return n / (std::sqrt(a) + 1e-8);
+}
+VectorType div(float n, VectorType a) {
+
+	for (size_t i = 0; i < a.size(); ++i) {
+		a[i] = n / (std::sqrt(a[i]) + 1e-8);
+	}
+
+	return a;
+}
+MatrixType div(float n, MatrixType a) {
+
+	for (size_t i = 0; i < a.size(); ++i) {
+		for (size_t j = 0; j < a[0].size(); ++j) {
+			a[i][j] = n / (std::sqrt(a[i][j]) + 1e-8);
+		}
+	}
+
+	return a;
+}
+
+
+template <typename T>
+struct AdaGrad {
+	float n;
+	T G;
+
+	AdaGrad(const T& param, float n = 0.1f) : n(n), G(zerosLike(param)) {
+		
+	}
+
+	void step(T& param, const T& partial) {
+
+		G += hadamard(partial, partial);
+
+		param += hadamard(div(-n, G), partial);
+	}
+};
+
+
 #endif

@@ -7,6 +7,9 @@
 
 #include <cmath>
 
+
+
+
 struct Add : Scalar {
 
 	Var a, b;
@@ -246,6 +249,10 @@ inline Var operator / (float f, const Var& v) {
 	return Div::build(Scalar::build(f), v);
 }
 
+inline Var operator / (const Var& v, float f) {
+	return Div::build(v, Scalar::build(f));
+}
+
 
 
 
@@ -340,6 +347,155 @@ struct VecHadamardVec : Vector {
 inline Vec hadamard(const Vec& v1, const Vec& v2) {
 	return VecHadamardVec::build(v1, v2);
 }
+
+
+
+struct VecDivVec : Vector {
+
+	Vec a, b;
+
+	VecDivVec(size_t s = 0, float fillValue = 0.0f) {
+		size = s;
+		value = std::vector<float>(s, fillValue);
+		partial = std::vector<float>(s, 0.0f);
+	}
+
+	static Vec build(const Vec& v1, const Vec& v2) {
+
+		std::shared_ptr<VecDivVec> node = std::make_shared<VecDivVec>(v1->size);
+
+		node->a = v1;
+		node->b = v2;
+		#if USE_NAME
+			node->name = v1->name + " / " + v2->name;
+		#endif
+
+		node->parents.push_back(v1);
+		node->parents.push_back(v2);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < a->size; ++i) {
+			value[i] = a->value[i] / b->value[i];
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < size; ++i) {
+
+			float inv = 1.0f / (b->value[i] * b->value[i]);
+
+			a->partial[i] += b->value[i] * inv * partial[i];
+			b->partial[i] -= a->value[i] * inv * partial[i];
+		}
+	}
+};
+
+inline Vec operator / (const Vec& v1, const Vec& v2) {
+	return VecDivVec::build(v1, v2);
+}
+
+
+struct VecDivVar : Vector {
+
+	Vec a;
+	Var b;
+
+	VecDivVar(size_t s = 0, float fillValue = 0.0f) {
+		size = s;
+		value = std::vector<float>(s, fillValue);
+		partial = std::vector<float>(s, 0.0f);
+	}
+
+	static Vec build(const Vec& v1, const Var& v2) {
+
+		std::shared_ptr<VecDivVar> node = std::make_shared<VecDivVar>(v1->size);
+
+		node->a = v1;
+		node->b = v2;
+		#if USE_NAME
+			node->name = v1->name + " / " + v2->name;
+		#endif
+
+		node->parents.push_back(v1);
+		node->parents.push_back(v2);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		float inv = 1.0f / b->value;
+		for (size_t i = 0; i < a->size; ++i) {
+			value[i] = a->value[i] * inv;
+		}
+	}
+
+	void derive() override final {
+		float inv = 1.0f / (b->value * b->value);
+
+		for (size_t i = 0; i < size; ++i) {
+			a->partial[i] += b->value * inv * partial[i];
+			b->partial -= a->value[i] * inv * partial[i];
+		}
+	}
+};
+
+inline Vec operator / (const Vec& v1, const Var& v2) {
+	return VecDivVar::build(v1, v2);
+}
+
+
+
+
+
+
+struct VecAddVar : Vector {
+
+	Vec a;
+	Var b;
+
+	VecAddVar(size_t s = 0, float fillValue = 0.0f) {
+		size = s;
+		value = std::vector<float>(s, fillValue);
+		partial = std::vector<float>(s, 0.0f);
+	}
+
+	static Vec build(const Vec& v1, const Var& v2) {
+
+		std::shared_ptr<VecAddVar> node = std::make_shared<VecAddVar>(v1->size);
+
+		node->a = v1;
+		node->b = v2;
+		#if USE_NAME
+			node->name = v1->name + " + " + v2->name;
+		#endif
+
+		node->parents.push_back(v1);
+		node->parents.push_back(v2);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < a->size; ++i) {
+			value[i] = a->value[i] + b->value;
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < size; ++i) {
+			a->partial[i] += partial[i];
+			b->partial += partial[i];
+		}
+	}
+};
+
+inline Vec operator + (const Vec& v1, const Var& v2) {
+	return VecAddVar::build(v1, v2);
+}
+
 
 
 
@@ -527,6 +683,93 @@ Vec sigmoid(const Vec& v) {
 
 
 
+struct VecExp : Vector {
+
+	Vec a;
+
+	VecExp(size_t s = 0, float fillValue = 0.0f) {
+		size = s;
+		value = std::vector<float>(s, fillValue);
+		partial = std::vector<float>(s, 0.0f);
+	}
+
+	static Vec build(const Vec& v) {
+
+		std::shared_ptr<VecExp> node = std::make_shared<VecExp>(v->size);
+
+		node->a = v;
+		#if USE_NAME
+			node->name = "exp(" + v->name + ")";
+		#endif
+
+		node->parents.push_back(v);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < size; ++i) {
+			value[i] = std::exp(a->value[i]);
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < size; ++i) {
+			a->partial[i] += value[i] * partial[i];
+		}
+	}
+};
+
+Vec exp(const Vec& v) {
+	return VecExp::build(v);
+}
+
+
+struct VecLog : Vector {
+
+	Vec a;
+
+	VecLog(size_t s = 0, float fillValue = 0.0f) {
+		size = s;
+		value = std::vector<float>(s, fillValue);
+		partial = std::vector<float>(s, 0.0f);
+	}
+
+	static Vec build(const Vec& v) {
+
+		std::shared_ptr<VecLog> node = std::make_shared<VecLog>(v->size);
+
+		node->a = v;
+		#if USE_NAME
+			node->name = "log(" + v->name + ")";
+		#endif
+
+		node->parents.push_back(v);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < size; ++i) {
+			value[i] = std::log(a->value[i]);
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < size; ++i) {
+			a->partial[i] += partial[i] / a->value[i];
+		}
+	}
+};
+
+Vec log(const Vec& v) {
+	return VecLog::build(v);
+}
+
+
+
+
+
 
 struct MatSigmoid : Matrix {
 
@@ -574,6 +817,73 @@ struct MatSigmoid : Matrix {
 Mat sigmoid(const Mat& m) {
 	return MatSigmoid::build(m);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct VecMax : Scalar {
+
+	Vec a;
+	size_t maxIndex;
+
+	VecMax() {
+
+	}
+
+	static Var build(const Vec& v) {
+
+		std::shared_ptr<VecMax> node = std::make_shared<VecMax>();
+
+		node->a = v;
+		#if USE_NAME
+			node->name = "max(" + v->name + ")";
+		#endif
+
+		node->parents.push_back(v);
+
+		return node;
+	}
+
+	void evaluate() override final {
+
+		maxIndex = 0.0f;
+		value = a->value[0];
+
+		for (size_t i = 1; i < a->size; ++i) {
+			if (a->value[i] > value) {
+				value = a->value[i];
+				maxIndex = i;
+			}
+		}
+
+	}
+
+	void derive() override final {
+		a->partial[maxIndex] += partial;
+	}
+};
+
+Var max(const Vec& v) {
+	return VecMax::build(v);
+}
+
+
+
 
 
 
@@ -964,6 +1274,51 @@ inline Mat hadamard(const Mat& m1, const Mat& m2) {
 
 
 
+
+
+
+
+struct VecSum : Scalar {
+
+	Vec a;
+
+	VecSum() {
+
+	}
+
+	static Var build(const Vec& v) {
+
+		std::shared_ptr<VecSum> node = std::make_shared<VecSum>();
+
+		node->a = v;
+		#if USE_NAME
+			node->name = "sum(" + v->name + ")";
+		#endif
+
+		node->parents.push_back(v);
+
+		return node;
+	}
+
+	void evaluate() override final {
+
+		value = 0.0f;
+
+		for (size_t i = 0; i < a->size; ++i) {
+			value += a->value[i];
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < a->size; ++i) {
+			a->partial[i] += partial;
+		}
+	}
+};
+
+inline Var sum(const Vec& v) {
+	return VecSum::build(v);
+}
 
 
 

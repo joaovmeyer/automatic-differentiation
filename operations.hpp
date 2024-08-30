@@ -223,6 +223,35 @@ struct Div : Scalar {
 	}
 };
 
+struct Sqrt : Scalar {
+
+	Var a;
+
+	Sqrt() {}
+
+	static Var build(const Var& v) {
+
+		std::shared_ptr<Sqrt> node = std::make_shared<Sqrt>();
+
+		node->a = v;
+		#if USE_NAME
+			node->name = "sqrt(" + v->name + ")";
+		#endif
+
+		node->parents.push_back(v);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		value = std::sqrt(a->value);
+	}
+
+	void derive() override final {
+		a->partial += partial / (2.0f * value);
+	}
+};
+
 
 inline Var operator + (const Var& v1, const Var& v2) {
 	return Add::build(v1, v2);
@@ -251,6 +280,10 @@ inline Var operator / (float f, const Var& v) {
 
 inline Var operator / (const Var& v, float f) {
 	return Div::build(v, Scalar::build(f));
+}
+
+Var sqrt(const Var& v) {
+	return Sqrt::build(v);
 }
 
 
@@ -447,6 +480,53 @@ inline Vec operator / (const Vec& v1, const Var& v2) {
 }
 
 
+struct VecMultVar : Vector {
+
+	Vec a;
+	Var b;
+
+	VecMultVar(size_t s = 0, float fillValue = 0.0f) {
+		size = s;
+		value = std::vector<float>(s, fillValue);
+		partial = std::vector<float>(s, 0.0f);
+	}
+
+	static Vec build(const Vec& v1, const Var& v2) {
+
+		std::shared_ptr<VecMultVar> node = std::make_shared<VecMultVar>(v1->size);
+
+		node->a = v1;
+		node->b = v2;
+		#if USE_NAME
+			node->name = v1->name + " * " + v2->name;
+		#endif
+
+		node->parents.push_back(v1);
+		node->parents.push_back(v2);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < a->size; ++i) {
+			value[i] = a->value[i] * b->value;
+		}
+	}
+
+	void derive() override final {
+
+		for (size_t i = 0; i < size; ++i) {
+			a->partial[i] += b->value * partial[i];
+			b->partial += partial[i] * a->value[i];
+		}
+	}
+};
+
+inline Vec operator * (const Vec& v1, const Var& v2) {
+	return VecMultVar::build(v1, v2);
+}
+
+
 
 
 
@@ -588,6 +668,56 @@ struct VecPlusVec : Vector {
 inline Vec operator + (const Vec& v1, const Vec& v2) {
 	return VecPlusVec::build(v1, v2);
 }
+
+
+struct VecMinusVar : Vector {
+
+	Vec a;
+	Var b;
+
+	VecMinusVar(size_t s = 0, float fillValue = 0.0f) {
+		size = s;
+		value = std::vector<float>(s, fillValue);
+		partial = std::vector<float>(s, 0.0f);
+	}
+
+	static Vec build(const Vec& v1, const Var& v2) {
+
+		std::shared_ptr<VecMinusVar> node = std::make_shared<VecMinusVar>(v1->size);
+
+		node->a = v1;
+		node->b = v2;
+		#if USE_NAME
+			node->name = "(" + v1->name + " - " + v2->name + ")";
+		#endif
+
+		node->parents.push_back(v1);
+		node->parents.push_back(v2);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < size; ++i) {
+			value[i] = a->value[i] - b->value;
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < size; ++i) {
+			a->partial[i] += partial[i];
+			b->partial -= partial[i];
+		}
+	}
+};
+
+inline Vec operator - (const Vec& v1, const Var& v2) {
+	return VecMinusVar::build(v1, v2);
+}
+
+
+
+
 
 
 

@@ -131,6 +131,50 @@ struct Matrix : Node {
 		}
 	}
 
+
+	void saveToFile(const std::string& path) {
+
+		// creates the path directory if it doesn't exist
+		std::filesystem::create_directories(std::filesystem::path(path).parent_path());
+
+		std::ofstream file(path, std::ios::binary);
+
+		file.write(reinterpret_cast<const char*>(&isTrainable), sizeof(isTrainable));
+		file.write(reinterpret_cast<const char*>(&rows), sizeof(rows));
+		file.write(reinterpret_cast<const char*>(&cols), sizeof(cols));
+
+		for (size_t i = 0; i < rows; ++i) {
+			file.write(reinterpret_cast<const char*>(&value[i][0]), cols * sizeof(float));
+		}
+
+		file.close();
+	}
+
+	static std::shared_ptr<Matrix> loadFromFile(const std::string& path) {
+
+		std::ifstream file(path, std::ios::binary);
+
+		if (!file) {
+			throw std::runtime_error("Cannot open file :(");
+		}
+
+		bool trainable;
+		size_t rows, cols;
+
+		file.read(reinterpret_cast<char*>(&trainable), sizeof(trainable));
+		file.read(reinterpret_cast<char*>(&rows), sizeof(rows));
+		file.read(reinterpret_cast<char*>(&cols), sizeof(cols));
+
+		std::shared_ptr<Matrix> mat = std::make_shared<Matrix>(rows, cols, 0.0f, "", trainable);
+
+		for (size_t i = 0; i < rows; ++i) {
+			file.read(reinterpret_cast<char*>(&mat->value[i][0]), cols * sizeof(float));
+		}
+
+		return mat;
+	}
+
+
 	Vec get(size_t index);
 };
 

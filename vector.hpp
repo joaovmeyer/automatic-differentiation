@@ -110,6 +110,44 @@ struct Vector : Node {
 		}
 	}
 
+
+
+	void saveToFile(const std::string& path) {
+
+		// creates the path directory if it doesn't exist
+		std::filesystem::create_directories(std::filesystem::path(path).parent_path());
+
+		std::ofstream file(path, std::ios::binary);
+
+		file.write(reinterpret_cast<const char*>(&isTrainable), sizeof(isTrainable));
+		file.write(reinterpret_cast<const char*>(&size), sizeof(size));
+		file.write(reinterpret_cast<const char*>(&value[0]), size * sizeof(float));
+
+		file.close();
+	}
+
+	static std::shared_ptr<Vector> loadFromFile(const std::string& path) {
+
+		std::ifstream file(path, std::ios::binary);
+
+		if (!file) {
+			throw std::runtime_error("Cannot open file :(");
+		}
+
+		bool trainable;
+		size_t size;
+
+		file.read(reinterpret_cast<char*>(&trainable), sizeof(trainable));
+		file.read(reinterpret_cast<char*>(&size), sizeof(size));
+
+		std::shared_ptr<Vector> vec = std::make_shared<Vector>(size, 0.0f, "", trainable);
+
+		file.read(reinterpret_cast<char*>(&vec->value[0]), size * sizeof(float));
+
+		return vec;
+	}
+
+
 	Var get(size_t index);
 };
 

@@ -62,6 +62,41 @@ struct Node : std::enable_shared_from_this<Node> {
 		return ordering;
 	}
 
+	// similar to topologicalSort, but separated in layers, where each layer can be processed in parallel
+	std::vector<std::vector<std::shared_ptr<Node>>> layeredTopologicalSort() {
+		std::vector<std::vector<std::shared_ptr<Node>>> layers;
+		std::unordered_set<std::shared_ptr<Node>> visited;
+        std::unordered_map<std::shared_ptr<Node>, int> layerNum;
+
+		std::function<void(const std::shared_ptr<Node>&)> addChildren = [&](const std::shared_ptr<Node>& node) {
+			// already handled this node
+			if (visited.find(node) != visited.end()) {
+				return;
+			}
+
+			visited.insert(node);
+
+			int maxParentLayer = -1;
+			for (size_t i = 0; i < node->parents.size(); ++i) {
+				addChildren(node->parents[i]);
+				maxParentLayer = std::max(maxParentLayer, layerNum[node->parents[i]]);
+			}
+
+			int nodeLayer = maxParentLayer + 1;
+			layerNum[node] = nodeLayer;
+
+			if (nodeLayer >= layers.size()) layers.resize(nodeLayer + 1);
+
+			layers[nodeLayer].push_back(node);
+		};
+
+		addChildren(shared_from_this());
+
+		return layers;
+	}
+
+
+
 	void eval() {
 		std::vector<std::shared_ptr<Node>> ordering = topologicalSort();
 

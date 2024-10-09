@@ -37,8 +37,10 @@ struct Optimizer {
 	std::vector<OptimizerParam<VectorType>> optimVector;
 	std::vector<OptimizerParam<MatrixType>> optimMatrix;
 
+	std::shared_ptr<Node> func;
+
 	template<class... Types>
-	Optimizer(const std::shared_ptr<Node>& f, Types... args) {
+	Optimizer(const std::shared_ptr<Node>& f, Types... args) : func(f) {
 
 		// doing this to get every parameter that affects the function f
 		std::vector<std::shared_ptr<Node>> ordering = f->topologicalSort();
@@ -70,7 +72,7 @@ struct Optimizer {
 
 
 	template<class... Types>
-	Optimizer(const std::vector<std::shared_ptr<Node>>& params, Types... args) {
+	Optimizer(const std::vector<std::shared_ptr<Node>>& params, Types... args) : func(nullptr) {
 
 		for (size_t i = 0; i < params.size(); ++i) {
 
@@ -93,7 +95,16 @@ struct Optimizer {
 	}
 
 
+	void optimize(int maxIter) {
 
+		if (!func) return;
+
+		for (int iter = 0; iter < maxIter; ++iter) {
+			prepare();
+			func->calculateDerivatives();
+			step();
+		}
+	}
 
 
 
@@ -121,6 +132,23 @@ struct Optimizer {
 		}
 	}
 };
+
+
+template <typename T>
+struct GradientDescent {
+	float lr;
+
+	GradientDescent(const T& param, float lr = 0.01f) : lr(-lr) {
+		
+	}
+
+	void step(T& param, const T& partial) {
+		param += partial * lr;
+	}
+
+	void prepare(T& param) {}
+};
+
 
 
 

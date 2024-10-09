@@ -3,20 +3,25 @@
 
 #include "node.hpp"
 
+#include <fstream>
+#include <filesystem>
+
 
 struct Scalar : Node {
 
 	float value;
 	float partial;
 
-	Scalar(float v = 0.0f, const std::string& n = "") : value(v), partial(0.0f) {
+	Scalar(float v = 0.0f, const std::string& n = "", bool trainable = false) : value(v), partial(0.0f) {
 		#if USE_NAME
 			name = (n == "") ? std::to_string(v) : n;
 		#endif
+
+		isTrainable = trainable;
 	}
 
-	static std::shared_ptr<Scalar> build(float v = 0.0f, const std::string& n = "") {
-		return std::make_shared<Scalar>(v, n);
+	static std::shared_ptr<Scalar> build(float v = 0.0f, bool trainable = false, const std::string& n = "") {
+		return std::make_shared<Scalar>(v, n, trainable);
 	}
 
 	void evaluate() override {
@@ -27,22 +32,12 @@ struct Scalar : Node {
 
 	}
 
-	void resetPartial() override {
-		partial = 0.0f;
+	void resetPartial(float defaultValue = 0.0f) override final {
+		partial = defaultValue;
 	}
 
-	void calculateDerivatives() {
-		std::vector<std::shared_ptr<Node>> ordering = topologicalSort();
-
-		for (size_t i = 0; i < ordering.size(); ++i) {
-			ordering[i]->evaluate();
-			ordering[i]->resetPartial();
-		}
-
-		partial = 1.0f; // dx/dx is 1 for whatever x
-		for (size_t i = ordering.size(); i > 0; --i) {
-			ordering[i - 1]->derive();
-		}
+	NodeTypes getType() override final {
+		return SCALAR;
 	}
 
 

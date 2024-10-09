@@ -4,6 +4,8 @@
 #include "node.hpp"
 
 #include <iostream>
+#include <fstream>
+#include <filesystem>
 
 
 inline void operator += (std::vector<float>& v1, const std::vector<float>& v2) {
@@ -87,27 +89,12 @@ struct Vector : Node {
 
 	}
 
-	void resetPartial() override final {
-		std::fill(partial.begin(), partial.end(), 0.0f);
+	void resetPartial(float defaultValue = 0.0f) override final {
+		std::fill(partial.begin(), partial.end(), defaultValue);
 	}
 
 	NodeTypes getType() {
 		return VECTOR;
-	}
-
-
-	void calculateDerivatives() {
-		std::vector<std::shared_ptr<Node>> ordering = topologicalSort();
-
-		for (size_t i = 0; i < ordering.size(); ++i) {
-			ordering[i]->evaluate();
-			ordering[i]->resetPartial();
-		}
-
-		std::fill(partial.begin(), partial.end(), 1.0f); // dx/dx is 1 for whatever x
-		for (size_t i = ordering.size(); i > 0; --i) {
-			ordering[i - 1]->derive();
-		}
 	}
 
 
@@ -149,6 +136,7 @@ struct Vector : Node {
 
 
 	Var get(size_t index);
+	std::shared_ptr<Vector> get(size_t start, size_t end);
 };
 
 // nicer naming
@@ -199,8 +187,67 @@ struct GetVectorElem : Scalar {
 
 
 Var Vector::get(size_t index = 0) {
-	return GetVectorElem::build(dynamic_pointer_cast<Vector>(shared_from_this()), index);
+	return GetVectorElem::build(std::dynamic_pointer_cast<Vector>(shared_from_this()), index);
 }
+
+
+
+
+struct GetVectorElems : Vector {
+	Vec a;
+	size_t start, end;
+
+	GetVectorElems(size_t s = 0, float fillValue = 0.0f) {
+		size = s;
+		value = std::vector<float>(s, fillValue);
+		partial = std::vector<float>(s, 0.0f);
+	}
+
+	static Vec build(const Vec& v, size_t start, size_t end) {
+
+		if (end < start) std::swap(start, end);
+
+		std::shared_ptr<GetVectorElems> node = std::make_shared<GetVectorElems>(end - start);
+
+		node->a = v;
+		node->start = start;
+		node->end = end;
+		#if USE_NAME
+			node->name = v->name + "[" + std::to_string(start) + ", " + std::to_string(end) + "]";
+		#endif
+
+		for (size_t i = 0; i < end - start; ++i) {
+			node->value[i] = node->a->value[i + start];
+		}
+
+		node->parents.push_back(v);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < end - start; ++i) {
+			value[i] = a->value[i + start];
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < end - start; ++i) {
+			a->partial[i + start] += partial[i];
+		}
+	}
+};
+
+
+Vec Vector::get(size_t start, size_t end) {
+	return GetVectorElems::build(std::dynamic_pointer_cast<Vector>(shared_from_this()), start, end);
+}
+
+
+
+
+
+
 
 
 struct VectorFromScalars : Vector {
@@ -234,6 +281,52 @@ struct VectorFromScalars : Vector {
 	void derive() override final {
 		for (size_t i = 0; i < size; ++i) {
 			a[i]->partial += partial[i];
+		}
+	}
+};
+
+
+
+
+struct VectorConcat : Vector {
+	Vec a, b;
+
+	VectorConcat(size_t s = 0, float fillValue = 0.0f) {
+		size = s;
+		value = std::vector<float>(s, fillValue);
+		partial = std::vector<float>(s, 0.0f);
+	}
+
+	static Vec build(const Vec& v1, const Vec& v2) {
+
+		std::shared_ptr<VectorConcat> node = std::make_shared<VectorConcat>(v1->size + v2->size);
+
+		node->a = v1;
+		node->b = v2;
+
+		node->parents.push_back(v1);
+		node->parents.push_back(v2);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < a->size; ++i) {
+			value[i] = a->value[i];
+		}
+
+		for (size_t i = 0; i < b->size; ++i) {
+			value[i + a->size] = b->value[i];
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < a->size; ++i) {
+			a->partial[i] += partial[i];
+		}
+
+		for (size_t i = 0; i < b->size; ++i) {
+			b->partial[i] += partial[i + a->size];
 		}
 	}
 };

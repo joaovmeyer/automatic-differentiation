@@ -5,6 +5,8 @@
 #include "node.hpp"
 
 #include <iostream>
+#include <fstream>
+#include <filesystem>
 
 
 inline void operator += (std::vector<std::vector<float>>& m1, const std::vector<std::vector<float>>& m2) {
@@ -67,6 +69,7 @@ struct Matrix : Node {
 	size_t rows, cols;
 	std::vector<std::vector<float>> value;
 	std::vector<std::vector<float>> partial;
+	std::shared_ptr<Matrix> gradientFunction;
 
 	Matrix(size_t r = 0, size_t c = 0, float fillValue = 0.0f, const std::string& n = "", bool trainable = false) : rows(r), cols(c), 
 		value(std::vector<std::vector<float>>(r, std::vector<float>(c, fillValue))), partial(std::vector<std::vector<float>>(r, std::vector<float>(c, 0.0f))) {
@@ -86,6 +89,8 @@ struct Matrix : Node {
 
 		std::shared_ptr<Matrix> mat = std::make_shared<Matrix>(r, c, 0.0f, n, trainable);
 
+		stddev /= static_cast<double>(c);
+
 		for (size_t i = 0; i < r; ++i) {
 			for (size_t j = 0; j < c; ++j) {
 				mat->value[i][j] = rng::fromNormalDistribution(mean, stddev);
@@ -103,9 +108,9 @@ struct Matrix : Node {
 
 	}
 
-	void resetPartial() override final {
+	void resetPartial(float defaultValue = 0.0f) override final {
 		for (size_t i = 0; i < rows; ++i) {
-			std::fill(partial[i].begin(), partial[i].end(), 0.0f);
+			std::fill(partial[i].begin(), partial[i].end(), defaultValue);
 		}
 	}
 
@@ -113,23 +118,14 @@ struct Matrix : Node {
 		return MATRIX;
 	}
 
-	void calculateDerivatives() {
-		std::vector<std::shared_ptr<Node>> ordering = topologicalSort();
-
-		for (size_t i = 0; i < ordering.size(); ++i) {
-		//	ordering[i]->evaluate();
-			ordering[i]->resetPartial();
-		}
-
-		// dx/dx is 1 for whatever x
-		for (size_t i = 0; i < rows; ++i) {
-			std::fill(partial[i].begin(), partial[i].end(), 1.0f);
-		}
-
-		for (size_t i = ordering.size(); i > 0; --i) {
-			ordering[i - 1]->derive();
-		}
+	void updateGradientFunction() override {
+		
 	}
+
+	void resetGradientFunction(float defaultValue = 0.0f) override {
+		gradientFunction = Matrix::build(rows, cols, defaultValue);
+	}
+
 
 
 	void saveToFile(const std::string& path) {

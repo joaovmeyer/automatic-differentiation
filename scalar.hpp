@@ -11,6 +11,7 @@ struct Scalar : Node {
 
 	float value;
 	float partial;
+	std::shared_ptr<Scalar> gradientFunction;
 
 	Scalar(float v = 0.0f, const std::string& n = "", bool trainable = false) : value(v), partial(0.0f) {
 		#if USE_NAME
@@ -38,6 +39,14 @@ struct Scalar : Node {
 
 	NodeTypes getType() override final {
 		return SCALAR;
+	}
+
+	void updateGradientFunction() override {
+		
+	}
+
+	void resetGradientFunction(float defaultValue = 0.0f) override {
+		gradientFunction = Scalar::build(defaultValue);
 	}
 
 

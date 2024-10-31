@@ -40,6 +40,48 @@ struct Add : Scalar {
 		a->partial += partial;
 		b->partial += partial;
 	}
+
+	void updateGradientFunction() override final {
+		a->gradientFunction = Add::build(a->gradientFunction, gradientFunction);
+		b->gradientFunction = Add::build(b->gradientFunction, gradientFunction);
+	}
+};
+
+struct Subtract : Scalar {
+
+	Var a, b;
+
+	Subtract() {}
+
+	static Var build(const Var& v1, const Var& v2) {
+
+		std::shared_ptr<Subtract> node = std::make_shared<Subtract>();
+
+		node->a = v1;
+		node->b = v2;
+		#if USE_NAME
+			node->name = "(" + v1->name + " - " + v2->name + ")";
+		#endif
+
+		node->parents.push_back(v1);
+		node->parents.push_back(v2);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		value = a->value - b->value;
+	}
+
+	void derive() override final {
+		a->partial += partial;
+		b->partial -= partial;
+	}
+
+	void updateGradientFunction() override final {
+		a->gradientFunction = Add::build(a->gradientFunction, gradientFunction);
+		b->gradientFunction = Subtract::build(b->gradientFunction, gradientFunction);
+	}
 };
 
 struct Mult : Scalar {
@@ -72,123 +114,13 @@ struct Mult : Scalar {
 		a->partial += partial * b->value;
 		b->partial += partial * a->value;
 	}
-};
 
-struct Sin : Scalar {
-
-	Var a;
-
-	Sin() {}
-
-	static Var build(const Var& v) {
-
-		std::shared_ptr<Sin> node = std::make_shared<Sin>();
-
-		node->a = v;
-		#if USE_NAME
-			node->name = "sin(" + v->name + ")";
-		#endif
-
-		node->parents.push_back(v);
-
-		return node;
-	}
-
-	void evaluate() override final {
-		value = std::sin(a->value);
-	}
-
-	void derive() override final {
-		a->partial += partial * std::cos(a->value);
+	void updateGradientFunction() override final {
+		a->gradientFunction = Add::build(a->gradientFunction, Mult::build(gradientFunction, b));
+		b->gradientFunction = Add::build(b->gradientFunction, Mult::build(gradientFunction, a));
 	}
 };
 
-struct Cos : Scalar {
-
-	Var a;
-
-	Cos() {}
-
-	static Var build(const Var& v) {
-
-		std::shared_ptr<Cos> node = std::make_shared<Cos>();
-
-		node->a = v;
-		#if USE_NAME
-			node->name = "cos(" + v->name + ")";
-		#endif
-
-		node->parents.push_back(v);
-
-		return node;
-	}
-
-	void evaluate() override final {
-		value = std::cos(a->value);
-	}
-
-	void derive() override final {
-		a->partial -= partial * std::sin(a->value);
-	}
-};
-
-struct Exp : Scalar {
-
-	Var a;
-
-	Exp() {}
-
-	static Var build(const Var& v) {
-
-		std::shared_ptr<Exp> node = std::make_shared<Exp>();
-
-		node->a = v;
-		#if USE_NAME
-			node->name = "exp(" + v->name + ")";
-		#endif
-
-		node->parents.push_back(v);
-
-		return node;
-	}
-
-	void evaluate() override final {
-		value = std::exp(a->value);
-	}
-
-	void derive() override final {
-		a->partial += partial * value;
-	}
-};
-
-struct Ln : Scalar {
-
-	Var a;
-
-	Ln() {}
-
-	static Var build(const Var& v) {
-
-		std::shared_ptr<Ln> node = std::make_shared<Ln>();
-
-		node->a = v;
-		#if USE_NAME
-			node->name = "ln(" + v->name + ")";
-		#endif
-
-		node->parents.push_back(v);
-
-		return node;
-	}
-
-	void evaluate() override final {
-		value = std::log(a->value);
-	}
-
-	void derive() override final {
-		a->partial += partial / a->value;
-	}
-};
 
 struct Div : Scalar {
 
@@ -221,7 +153,164 @@ struct Div : Scalar {
 		a->partial += partial * b->value * inv;
 		b->partial -= partial * a->value * inv;
 	}
+
+	void updateGradientFunction() override final {
+
+		Var inv = Div::build(Scalar::build(1.0f), Mult::build(b, b));
+
+		a->gradientFunction = Add::build(a->gradientFunction, Mult::build(Mult::build(gradientFunction, b), inv));
+		b->gradientFunction = Subtract::build(b->gradientFunction, Mult::build(Mult::build(gradientFunction, a), inv));
+	}
 };
+
+
+struct Sin;
+struct Cos;
+
+struct Sin : Scalar {
+
+	Var a;
+
+	Sin() {}
+
+	static Var build(const Var& v) {
+
+		std::shared_ptr<Sin> node = std::make_shared<Sin>();
+
+		node->a = v;
+		#if USE_NAME
+			node->name = "sin(" + v->name + ")";
+		#endif
+
+		node->parents.push_back(v);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		value = std::sin(a->value);
+	}
+
+	void derive() override final {
+		a->partial += partial * std::cos(a->value);
+	}
+
+	void updateGradientFunction() override final;
+};
+
+struct Cos : Scalar {
+
+	Var a;
+
+	Cos() {}
+
+	static Var build(const Var& v) {
+
+		std::shared_ptr<Cos> node = std::make_shared<Cos>();
+
+		node->a = v;
+		#if USE_NAME
+			node->name = "cos(" + v->name + ")";
+		#endif
+
+		node->parents.push_back(v);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		value = std::cos(a->value);
+	}
+
+	void derive() override final {
+		a->partial -= partial * std::sin(a->value);
+	}
+
+	void updateGradientFunction() override final;
+};
+
+
+void Sin::updateGradientFunction() {
+	a->gradientFunction = Add::build(a->gradientFunction, Mult::build(gradientFunction, Cos::build(a)));
+}
+
+void Cos::updateGradientFunction() {
+	a->gradientFunction = Subtract::build(a->gradientFunction, Mult::build(gradientFunction, Sin::build(a)));
+}
+
+
+
+
+
+
+
+struct Exp : Scalar {
+
+	Var a;
+
+	Exp() {}
+
+	static Var build(const Var& v) {
+
+		std::shared_ptr<Exp> node = std::make_shared<Exp>();
+
+		node->a = v;
+		#if USE_NAME
+			node->name = "exp(" + v->name + ")";
+		#endif
+
+		node->parents.push_back(v);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		value = std::exp(a->value);
+	}
+
+	void derive() override final {
+		a->partial += partial * value;
+	}
+
+	void updateGradientFunction() override final {
+		a->gradientFunction = Add::build(a->gradientFunction, Mult::build(gradientFunction, std::static_pointer_cast<Scalar>(shared_from_this())));
+	}
+};
+
+struct Ln : Scalar {
+
+	Var a;
+
+	Ln() {}
+
+	static Var build(const Var& v) {
+
+		std::shared_ptr<Ln> node = std::make_shared<Ln>();
+
+		node->a = v;
+		#if USE_NAME
+			node->name = "ln(" + v->name + ")";
+		#endif
+
+		node->parents.push_back(v);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		value = std::log(a->value);
+	}
+
+	void derive() override final {
+		a->partial += partial / a->value;
+	}
+
+	void updateGradientFunction() override final {
+		a->gradientFunction = Add::build(a->gradientFunction, Div::build(gradientFunction, a));
+	}
+};
+
+
 
 struct Sqrt : Scalar {
 
@@ -250,11 +339,19 @@ struct Sqrt : Scalar {
 	void derive() override final {
 		a->partial += partial / (2.0f * value);
 	}
+
+	void updateGradientFunction() override final {
+		a->gradientFunction = Add::build(a->gradientFunction, Div::build(gradientFunction, Mult::build(std::static_pointer_cast<Scalar>(shared_from_this()), Scalar::build(2.0f))));
+	}
 };
 
 
 inline Var operator + (const Var& v1, const Var& v2) {
 	return Add::build(v1, v2);
+}
+
+inline Var operator - (const Var& v1, const Var& v2) {
+	return Subtract::build(v1, v2);
 }
 
 inline Var operator * (const Var& v1, const Var& v2) {
@@ -284,6 +381,22 @@ inline Var operator / (const Var& v, float f) {
 
 Var sqrt(const Var& v) {
 	return Sqrt::build(v);
+}
+
+Var log(const Var& v) {
+	return Ln::build(v);
+}
+
+Var exp(const Var& v) {
+	return Exp::build(v);
+}
+
+Var sin(const Var& v) {
+	return Sin::build(v);
+}
+
+Var cos(const Var& v) {
+	return Cos::build(v);
 }
 
 
@@ -1156,6 +1269,16 @@ struct MatDotMat : Matrix {
 			for (size_t j = 0; j < p; ++j) {
 				for (size_t k = 0; k < m; ++k) {
 					a->partial[i][j] += partial[i][k] * b->value[j][k];
+
+					b->partial[j][k] += a->value[i][j] * partial[i][k];
+				}
+			}
+		}
+
+	/*	for (size_t i = 0; i < n; ++i) {
+			for (size_t j = 0; j < p; ++j) {
+				for (size_t k = 0; k < m; ++k) {
+					a->partial[i][j] += partial[i][k] * b->value[j][k];
 				}
 			}
 		}
@@ -1166,7 +1289,7 @@ struct MatDotMat : Matrix {
 					b->partial[i][j] += a->value[k][i] * partial[k][j];
 				}
 			}
-		}
+		}*/
 	}
 };
 
@@ -1498,12 +1621,5 @@ struct MatSum : Scalar {
 inline Var sum(const Mat& m) {
 	return MatSum::build(m);
 }
-
-
-
-
-
-
-
 
 #endif

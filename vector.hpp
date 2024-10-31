@@ -55,6 +55,7 @@ struct Vector : Node {
 	size_t size;
 	std::vector<float> value;
 	std::vector<float> partial;
+	std::shared_ptr<Vector> gradientFunction;
 
 	Vector(size_t s = 0, float fillValue = 0.0f, const std::string& n = "", bool trainable = false) : size(s), value(std::vector<float>(s, fillValue)), partial(std::vector<float>(s, 0.0f)) {
 		
@@ -95,6 +96,14 @@ struct Vector : Node {
 
 	NodeTypes getType() {
 		return VECTOR;
+	}
+
+	void updateGradientFunction() override {
+		
+	}
+
+	void resetGradientFunction(float defaultValue = 0.0f) override {
+		gradientFunction = Vector::build(size, defaultValue);
 	}
 
 

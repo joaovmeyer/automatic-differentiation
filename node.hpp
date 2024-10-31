@@ -40,6 +40,8 @@ struct Node : std::enable_shared_from_this<Node> {
 	virtual inline void derive() = 0;
 	virtual inline void resetPartial(float defaultValue = 0.0f) = 0;
 	virtual inline NodeTypes getType() = 0;
+	virtual inline void updateGradientFunction() = 0; // similar to derive but to the function, not partial
+	virtual inline void resetGradientFunction(float defaultValue = 0.0f) = 0; // similar to resetPartial, ...
 
 
 	std::vector<std::shared_ptr<Node>> topologicalSort() {
@@ -79,6 +81,21 @@ struct Node : std::enable_shared_from_this<Node> {
 		resetPartial(1.0f);
 		for (size_t i = ordering.size(); i > 0; --i) {
 			ordering[i - 1]->derive();
+		}
+	}
+
+
+	void calculateGradientFunctions() {
+		std::vector<std::shared_ptr<Node>> ordering = topologicalSort();
+
+		for (size_t i = 0; i < ordering.size(); ++i) {
+			ordering[i]->resetGradientFunction();
+		}
+
+		// dx/dx is 1 for whatever x
+		resetGradientFunction(1.0f);
+		for (size_t i = ordering.size(); i > 0; --i) {
+			ordering[i - 1]->updateGradientFunction();
 		}
 	}
 
@@ -173,6 +190,16 @@ struct Node : std::enable_shared_from_this<Node> {
 			}
 		}
 	}
+
+
+
+
+
+
+
+
+
+
 
 
 	void eval() {

@@ -50,12 +50,60 @@ std::ostream& operator << (std::ostream& os, const std::vector<float>& v) {
 }
 
 
+
+
+
+
+
+
+struct Vector;
+
+
+
+struct Vec {
+	std::shared_ptr<Vector> ptr;
+
+	Vec() {}
+	// now this is cool
+	template <typename T, typename = std::enable_if_t<std::is_base_of_v<Vector, T>>>
+	Vec(const std::shared_ptr<T>& p) : ptr(p) {}
+
+	Vector* operator->() const {
+		return ptr.get();
+	}
+
+	Vector& operator*() const {
+		return *ptr;
+	}
+
+	vector<float> operator () () const;
+
+
+	operator std::shared_ptr<Vector>() const {
+		return ptr;
+	}
+	operator std::shared_ptr<Node>() const {
+		return static_pointer_cast<Node>(ptr);
+	}
+
+	Var operator [] (size_t index) const;
+	Vec operator () (size_t start, size_t end) const;
+};
+
+
+
+
+
+
+
+
+
 struct Vector : Node {
 
 	size_t size;
 	std::vector<float> value;
 	std::vector<float> partial;
-	std::shared_ptr<Vector> gradientFunction;
+	Vec gradientFunction;
 
 	Vector(size_t s = 0, float fillValue = 0.0f, const std::string& n = "", bool trainable = false) : size(s), value(std::vector<float>(s, fillValue)), partial(std::vector<float>(s, 0.0f)) {
 		
@@ -78,7 +126,7 @@ struct Vector : Node {
 		isTrainable = trainable;
 	}
 
-	static std::shared_ptr<Vector> build(size_t s = 0, float fillValue = 0.0f, bool trainable = false, const std::string& n = "") {
+	static Vec build(size_t s = 0, float fillValue = 0.0f, bool trainable = false, const std::string& n = "") {
 		return std::make_shared<Vector>(s, fillValue, n, trainable);
 	}
 
@@ -122,7 +170,7 @@ struct Vector : Node {
 		file.close();
 	}
 
-	static std::shared_ptr<Vector> loadFromFile(const std::string& path) {
+	static Vec loadFromFile(const std::string& path) {
 
 		std::ifstream file(path, std::ios::binary);
 
@@ -136,7 +184,7 @@ struct Vector : Node {
 		file.read(reinterpret_cast<char*>(&trainable), sizeof(trainable));
 		file.read(reinterpret_cast<char*>(&size), sizeof(size));
 
-		std::shared_ptr<Vector> vec = std::make_shared<Vector>(size, 0.0f, "", trainable);
+		Vec vec(std::make_shared<Vector>(size, 0.0f, "", trainable));
 
 		file.read(reinterpret_cast<char*>(&vec->value[0]), size * sizeof(float));
 
@@ -144,12 +192,23 @@ struct Vector : Node {
 	}
 
 
-	Var get(size_t index);
-	std::shared_ptr<Vector> get(size_t start, size_t end);
+/*	Var get(size_t index);
+	Vec get(size_t start, size_t end);*/
 };
 
 // nicer naming
-using Vec = std::shared_ptr<Vector>;
+// using Vec = std::shared_ptr<Vector>;
+
+
+
+
+
+
+
+vector<float> Vec::operator () () const {
+	ptr->eval();
+	return ptr->value;
+}
 
 
 
@@ -159,6 +218,59 @@ using Vec = std::shared_ptr<Vector>;
 
 
 
+
+
+
+
+
+
+// some forward declarations
+Vec operator + (const Vec& v1, const Vec& v2);
+Var operator + (const Var& v1, const Var& v2);
+
+struct VectorAddAtPos : Vector {
+	Vec a;
+	Var b;
+	size_t index;
+
+	VectorAddAtPos(size_t s = 0, float fillValue = 0.0f) {
+		size = s;
+		value = std::vector<float>(s, fillValue);
+		partial = std::vector<float>(s, 0.0f);
+	}
+
+	static Vec build(const Vec& v, const Var& s, size_t index = 0) {
+
+		std::shared_ptr<VectorAddAtPos> node = std::make_shared<VectorAddAtPos>(v->size);
+
+		node->a = v;
+		node->b = s;
+		node->index = index;
+		#if USE_NAME
+			node->name = v->name + "[" + std::to_string(index) + "] + " + s->name;
+		#endif
+
+		node->parents.push_back(v);
+		node->parents.push_back(s);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		value = a->value;
+		value[index] += b->value;
+	}
+
+	void derive() override final {
+		a->partial += partial;
+		b->partial += partial[index];
+	}
+
+	void updateGradientFunction() override final {
+		a->gradientFunction = a->gradientFunction + gradientFunction;
+		b->gradientFunction = b->gradientFunction + gradientFunction[index];
+	}
+};
 
 
 
@@ -192,12 +304,19 @@ struct GetVectorElem : Scalar {
 	void derive() override final {
 		a->partial[index] += partial;
 	}
+
+	void updateGradientFunction() override final {
+		a->gradientFunction = VectorAddAtPos::build(a->gradientFunction, gradientFunction, index);
+	}
 };
 
 
-Var Vector::get(size_t index = 0) {
-	return GetVectorElem::build(std::dynamic_pointer_cast<Vector>(shared_from_this()), index);
+Var Vec::operator [] (size_t index) const {
+	return GetVectorElem::build(*this, index);
 }
+/*Var Vector::get(size_t index = 0) {
+	return GetVectorElem::build(get_self(), index);
+}*/
 
 
 
@@ -248,9 +367,12 @@ struct GetVectorElems : Vector {
 };
 
 
-Vec Vector::get(size_t start, size_t end) {
-	return GetVectorElems::build(std::dynamic_pointer_cast<Vector>(shared_from_this()), start, end);
+Vec Vec::operator () (size_t start, size_t end) const {
+	return GetVectorElems::build(*this, start, end);
 }
+/*Vec Vector::get(size_t start, size_t end) {
+	return GetVectorElems::build(get_self(), start, end);
+}*/
 
 
 

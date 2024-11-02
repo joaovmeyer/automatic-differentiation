@@ -7,6 +7,42 @@
 #include <filesystem>
 
 
+
+struct Scalar;
+
+
+
+struct Var {
+	std::shared_ptr<Scalar> ptr;
+
+	Var() {}
+	Var(const std::shared_ptr<Node>& p) : ptr(std::dynamic_pointer_cast<Scalar>(p)) {}
+	template <typename T, typename = std::enable_if_t<std::is_base_of_v<Scalar, T>>>
+	Var(const std::shared_ptr<T>& p) : ptr(p) {}
+
+	Scalar* operator -> () const {
+		return ptr.get();
+	}
+
+	Scalar& operator * () const {
+		return *ptr;
+	}
+
+	float operator () () const;
+
+
+	operator std::shared_ptr<Scalar>() const {
+		return ptr;
+	}
+	operator std::shared_ptr<Node>() const {
+		return std::static_pointer_cast<Node>(ptr);
+	}
+};
+
+
+
+
+
 struct Scalar : Node {
 
 	float value;
@@ -82,8 +118,11 @@ struct Scalar : Node {
 	}
 };
 
-// nicer naming
-using Var = std::shared_ptr<Scalar>;
+
+float Var::operator () () const {
+	ptr->eval();
+	return ptr->value;
+}
 
 
 #endif

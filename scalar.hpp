@@ -8,17 +8,25 @@
 
 
 
+#ifndef NUM_TYPE
+#define NUM_TYPE NUM_TYPE
+#endif
+
+
+
 struct Scalar;
 
 
 
 struct Var {
 	std::shared_ptr<Scalar> ptr;
+	int a = 1;
 
 	Var() {}
 	Var(const std::shared_ptr<Node>& p) : ptr(std::dynamic_pointer_cast<Scalar>(p)) {}
 	template <typename T, typename = std::enable_if_t<std::is_base_of_v<Scalar, T>>>
 	Var(const std::shared_ptr<T>& p) : ptr(p) {}
+	Var(NUM_TYPE val) : ptr(std::make_shared<Scalar>(val)) {}
 
 	Scalar* operator -> () const {
 		return ptr.get();
@@ -28,7 +36,7 @@ struct Var {
 		return *ptr;
 	}
 
-	float operator () () const;
+	NUM_TYPE operator () () const;
 
 
 	operator std::shared_ptr<Scalar>() const {
@@ -38,6 +46,10 @@ struct Var {
 		return std::static_pointer_cast<Node>(ptr);
 	}
 };
+	
+	std::ostream& operator << (std::ostream& os, const Var& v) {
+		return os << v.ptr;
+	}
 
 
 
@@ -45,11 +57,11 @@ struct Var {
 
 struct Scalar : Node {
 
-	float value;
-	float partial;
+	NUM_TYPE value;
+	NUM_TYPE partial;
 	std::shared_ptr<Scalar> gradientFunction;
 
-	Scalar(float v = 0.0f, const std::string& n = "", bool trainable = false) : value(v), partial(0.0f) {
+	Scalar(NUM_TYPE v = 0.0f, const std::string& n = "", bool trainable = false) : value(v), partial(0.0f) {
 		#if USE_NAME
 			name = (n == "") ? std::to_string(v) : n;
 		#endif
@@ -57,7 +69,7 @@ struct Scalar : Node {
 		isTrainable = trainable;
 	}
 
-	static std::shared_ptr<Scalar> build(float v = 0.0f, bool trainable = false, const std::string& n = "") {
+	static std::shared_ptr<Scalar> build(NUM_TYPE v = 0.0f, bool trainable = false, const std::string& n = "") {
 		return std::make_shared<Scalar>(v, n, trainable);
 	}
 
@@ -69,7 +81,7 @@ struct Scalar : Node {
 
 	}
 
-	void resetPartial(float defaultValue = 0.0f) override final {
+	void resetPartial(NUM_TYPE defaultValue = 0.0f) override final {
 		partial = defaultValue;
 	}
 
@@ -81,7 +93,7 @@ struct Scalar : Node {
 		
 	}
 
-	void resetGradientFunction(float defaultValue = 0.0f) override {
+	void resetGradientFunction(NUM_TYPE defaultValue = 0.0f) override {
 		gradientFunction = Scalar::build(defaultValue);
 	}
 
@@ -95,7 +107,7 @@ struct Scalar : Node {
 		std::ofstream file(path, std::ios::binary);
 
 		file.write(reinterpret_cast<const char*>(&isTrainable), sizeof(isTrainable));
-		file.write(reinterpret_cast<const char*>(&value), sizeof(float));
+		file.write(reinterpret_cast<const char*>(&value), sizeof(NUM_TYPE));
 
 		file.close();
 	}
@@ -112,14 +124,14 @@ struct Scalar : Node {
 		file.read(reinterpret_cast<char*>(&trainable), sizeof(trainable));
 
 		std::shared_ptr<Scalar> var = std::make_shared<Scalar>(0.0f, "", trainable);
-		file.read(reinterpret_cast<char*>(&var->value), sizeof(float));
+		file.read(reinterpret_cast<char*>(&var->value), sizeof(NUM_TYPE));
 
 		return var;
 	}
 };
 
 
-float Var::operator () () const {
+NUM_TYPE Var::operator () () const {
 	ptr->eval();
 	return ptr->value;
 }

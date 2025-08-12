@@ -9,7 +9,13 @@
 #include <filesystem>
 
 
-inline void operator += (std::vector<std::vector<float>>& m1, const std::vector<std::vector<float>>& m2) {
+
+#ifndef NUM_TYPE
+#define NUM_TYPE NUM_TYPE
+#endif
+
+
+inline void operator += (std::vector<std::vector<NUM_TYPE>>& m1, const std::vector<std::vector<NUM_TYPE>>& m2) {
 	for (size_t i = 0; i < m1.size(); ++i) {
 		for (size_t j = 0; j < m1[0].size(); ++j) {
 			m1[i][j] += m2[i][j];
@@ -17,8 +23,8 @@ inline void operator += (std::vector<std::vector<float>>& m1, const std::vector<
 	}
 }
 
-inline std::vector<std::vector<float>> operator + (const std::vector<std::vector<float>>& m1, const std::vector<std::vector<float>>& m2) {
-	std::vector<std::vector<float>> ans = m1;
+inline std::vector<std::vector<NUM_TYPE>> operator + (const std::vector<std::vector<NUM_TYPE>>& m1, const std::vector<std::vector<NUM_TYPE>>& m2) {
+	std::vector<std::vector<NUM_TYPE>> ans = m1;
 	for (size_t i = 0; i < m1.size(); ++i) {
 		for (size_t j = 0; j < m1[0].size(); ++j) {
 			ans[i][j] += m2[i][j];
@@ -28,8 +34,8 @@ inline std::vector<std::vector<float>> operator + (const std::vector<std::vector
 	return ans;
 }
 
-inline std::vector<std::vector<float>> operator * (const std::vector<std::vector<float>>& m, float a) {
-	std::vector<std::vector<float>> ans = m;
+inline std::vector<std::vector<NUM_TYPE>> operator * (const std::vector<std::vector<NUM_TYPE>>& m, NUM_TYPE a) {
+	std::vector<std::vector<NUM_TYPE>> ans = m;
 	for (size_t i = 0; i < m.size(); ++i) {
 		for (size_t j = 0; j < m[0].size(); ++j) {
 			ans[i][j] *= a;
@@ -39,11 +45,11 @@ inline std::vector<std::vector<float>> operator * (const std::vector<std::vector
 	return ans;
 }
 
-std::ostream& operator << (std::ostream& os, const std::vector<std::vector<float>>& m) {
+std::ostream& operator << (std::ostream& os, const std::vector<std::vector<NUM_TYPE>>& m) {
 
 	for (size_t i = 0; i < m.size(); ++i) {
 
-		os << "(";
+		os << "[";
 
 		for (size_t j = 0; j < m[i].size(); ++j) {
 			os << m[i][j];
@@ -53,7 +59,7 @@ std::ostream& operator << (std::ostream& os, const std::vector<std::vector<float
 			}
 		}
 
-		os << ")";
+		os << "]";
 
 		if (i + 1 < m.size()) {
 			os << "\n";
@@ -64,15 +70,59 @@ std::ostream& operator << (std::ostream& os, const std::vector<std::vector<float
 }
 
 
+
+
+
+
+struct Matrix;
+
+
+
+struct Mat {
+	std::shared_ptr<Matrix> ptr;
+
+	Mat() {}
+	Mat(const std::shared_ptr<Node>& p) : ptr(std::dynamic_pointer_cast<Matrix>(p)) {}
+	// now this is cool
+	template <typename T, typename = std::enable_if_t<std::is_base_of_v<Matrix, T>>>
+	Mat(const std::shared_ptr<T>& p) : ptr(p) {}
+
+	Matrix* operator -> () const {
+		return ptr.get();
+	}
+
+	Matrix& operator * () const {
+		return *ptr;
+	}
+
+	std::vector<std::vector<NUM_TYPE>> operator () () const;
+
+
+	operator std::shared_ptr<Matrix>() const {
+		return ptr;
+	}
+	operator std::shared_ptr<Node>() const {
+		return std::static_pointer_cast<Node>(ptr);
+	}
+
+	Vec operator [] (size_t index) const;
+};
+
+
+
+
+
+
+
 struct Matrix : Node {
 
 	size_t rows, cols;
-	std::vector<std::vector<float>> value;
-	std::vector<std::vector<float>> partial;
+	std::vector<std::vector<NUM_TYPE>> value;
+	std::vector<std::vector<NUM_TYPE>> partial;
 	std::shared_ptr<Matrix> gradientFunction;
 
-	Matrix(size_t r = 0, size_t c = 0, float fillValue = 0.0f, const std::string& n = "", bool trainable = false) : rows(r), cols(c), 
-		value(std::vector<std::vector<float>>(r, std::vector<float>(c, fillValue))), partial(std::vector<std::vector<float>>(r, std::vector<float>(c, 0.0f))) {
+	Matrix(size_t r = 0, size_t c = 0, NUM_TYPE fillValue = 0.0f, const std::string& n = "", bool trainable = false) : rows(r), cols(c), 
+		value(std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, fillValue))), partial(std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, 0.0f))) {
 
 		#if USE_NAME
 			name = n;
@@ -81,15 +131,15 @@ struct Matrix : Node {
 		isTrainable = trainable;
 	}
 
-	static std::shared_ptr<Matrix> build(size_t r = 0, size_t c = 0, float fillValue = 0.0f, bool trainable = false, const std::string& n = "") {
+	static std::shared_ptr<Matrix> build(size_t r = 0, size_t c = 0, NUM_TYPE fillValue = 0.0f, bool trainable = false, const std::string& n = "") {
 		return std::make_shared<Matrix>(r, c, fillValue, n, trainable);
 	}
 
-	static std::shared_ptr<Matrix> makeRandom(size_t r = 0, size_t c = 0, double mean = 0.0, double stddev = 1.0, bool trainable = false, const std::string& n = "") {
+	static std::shared_ptr<Matrix> makeRandom(size_t r = 0, size_t c = 0, NUM_TYPE mean = 0.0, NUM_TYPE stddev = 1.0, bool trainable = false, const std::string& n = "") {
 
 		std::shared_ptr<Matrix> mat = std::make_shared<Matrix>(r, c, 0.0f, n, trainable);
 
-		stddev /= static_cast<double>(c);
+		stddev /= static_cast<NUM_TYPE>(c);
 
 		for (size_t i = 0; i < r; ++i) {
 			for (size_t j = 0; j < c; ++j) {
@@ -108,7 +158,7 @@ struct Matrix : Node {
 
 	}
 
-	void resetPartial(float defaultValue = 0.0f) override final {
+	void resetPartial(NUM_TYPE defaultValue = 0.0f) override final {
 		for (size_t i = 0; i < rows; ++i) {
 			std::fill(partial[i].begin(), partial[i].end(), defaultValue);
 		}
@@ -122,7 +172,7 @@ struct Matrix : Node {
 		
 	}
 
-	void resetGradientFunction(float defaultValue = 0.0f) override {
+	void resetGradientFunction(NUM_TYPE defaultValue = 0.0f) override {
 		gradientFunction = Matrix::build(rows, cols, defaultValue);
 	}
 
@@ -140,7 +190,7 @@ struct Matrix : Node {
 		file.write(reinterpret_cast<const char*>(&cols), sizeof(cols));
 
 		for (size_t i = 0; i < rows; ++i) {
-			file.write(reinterpret_cast<const char*>(&value[i][0]), cols * sizeof(float));
+			file.write(reinterpret_cast<const char*>(&value[i][0]), cols * sizeof(NUM_TYPE));
 		}
 
 		file.close();
@@ -164,7 +214,7 @@ struct Matrix : Node {
 		std::shared_ptr<Matrix> mat = std::make_shared<Matrix>(rows, cols, 0.0f, "", trainable);
 
 		for (size_t i = 0; i < rows; ++i) {
-			file.read(reinterpret_cast<char*>(&mat->value[i][0]), cols * sizeof(float));
+			file.read(reinterpret_cast<char*>(&mat->value[i][0]), cols * sizeof(NUM_TYPE));
 		}
 
 		return mat;
@@ -175,12 +225,69 @@ struct Matrix : Node {
 };
 
 // nicer naming
-using Mat = std::shared_ptr<Matrix>;
+// using Mat = std::shared_ptr<Matrix>;
+
+
+
+
+std::vector<std::vector<NUM_TYPE>> Mat::operator () () const {
+	ptr->eval();
+	return ptr->value;
+}
 
 
 
 
 
+
+Mat operator + (const Mat& m1, const Mat& m2);
+
+// a[i] += b
+struct MatrixAddAtPos : Matrix {
+	Mat a;
+	Vec b;
+	size_t index;
+
+	MatrixAddAtPos(size_t r = 0, size_t c = 0, NUM_TYPE fillValue = 0.0f) {
+		rows = r;
+		cols = c;
+
+		value = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, fillValue));
+		partial = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, 0.0f));
+	}
+
+	static Mat build(const Mat& m, const Vec& v, size_t index = 0) {
+
+		std::shared_ptr<MatrixAddAtPos> node = std::make_shared<MatrixAddAtPos>(m->rows, m->cols);
+
+		node->a = m;
+		node->b = v;
+		node->index = index;
+		#if USE_NAME
+			node->name = m->name + "[" + std::to_string(index) + "] + " + v->name;
+		#endif
+
+		node->parents.push_back(m);
+		node->parents.push_back(v);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		value = a->value;
+		value[index] += b->value;
+	}
+
+	void derive() override final {
+		a->partial += partial;
+		b->partial += partial[index];
+	}
+
+	void updateGradientFunction() override final {
+		a->gradientFunction = a->gradientFunction + gradientFunction;
+		b->gradientFunction = b->gradientFunction + gradientFunction->get(index);
+	}
+};
 
 
 
@@ -190,8 +297,8 @@ struct GetMatrixRow : Vector {
 
 	GetMatrixRow(size_t s = 0) {
 		size = s;
-		value = std::vector<float>(s, 0.0f);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, 0.0f);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const Mat& m, size_t index = 0) {
@@ -216,6 +323,10 @@ struct GetMatrixRow : Vector {
 	void derive() override final {
 		a->partial[index] += partial;
 	}
+
+	void updateGradientFunction() override final {
+		a->gradientFunction = MatrixAddAtPos::build(a->gradientFunction, gradientFunction, index);
+	}
 };
 
 
@@ -223,7 +334,56 @@ Vec Matrix::get(size_t index = 0) {
 	return GetMatrixRow::build(std::dynamic_pointer_cast<Matrix>(shared_from_this()), index);
 }
 
+Vec Mat::operator [] (size_t index) const {
+	return GetMatrixRow::build(*this, index);
+}
 
+
+// each vector will be a row of the resulting matrix
+struct MatrixFromVectors : Matrix {
+	std::vector<Vec> a;
+
+	MatrixFromVectors(size_t r = 0, size_t c = 0, NUM_TYPE fillValue = 0.0f) {
+		rows = r;
+		cols = c;
+
+		value = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, fillValue));
+		partial = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, 0.0f));
+	}
+
+
+	static Mat build(const std::vector<Vec>& vecs) {
+
+		std::shared_ptr<MatrixFromVectors> node = std::make_shared<MatrixFromVectors>(vecs.size(), vecs[0]->size);
+
+		node->a = vecs;
+		for (size_t i = 0; i < vecs.size(); ++i) {
+			node->parents.push_back(vecs[i]);
+			node->value[i] = vecs[i]->value;
+		}
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < rows; ++i) {
+			value[i] = a[i]->value;
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < rows; ++i) {
+			a[i]->partial += partial[i];
+		}
+	}
+
+
+	void updateGradientFunction() override final {
+		for (size_t i = 0; i < rows; ++i) {
+			a[i]->gradientFunction = a[i]->gradientFunction + gradientFunction->get(i);
+		}
+	}
+};
 
 
 #endif

@@ -8,6 +8,10 @@
 #include <cmath>
 
 
+#ifndef NUM_TYPE
+#define NUM_TYPE NUM_TYPE
+#endif
+
 
 
 struct Add : Scalar {
@@ -149,7 +153,7 @@ struct Div : Scalar {
 	}
 
 	void derive() override final {
-		float inv = 1.0f / (b->value * b->value);
+		NUM_TYPE inv = 1.0f / (b->value * b->value);
 		a->partial += partial * b->value * inv;
 		b->partial -= partial * a->value * inv;
 	}
@@ -363,19 +367,29 @@ inline Var operator / (const Var& v1, const Var& v2) {
 }
 
 
-inline Var operator + (const Var& v, float f) {
+inline Var operator + (const Var& v, NUM_TYPE f) {
 	return Add::build(v, Scalar::build(f));
 }
 
-inline Var operator * (const Var& v, float f) {
+inline Var operator - (const Var& v, NUM_TYPE f) {
+	return Subtract::build(v, Scalar::build(f));
+}
+inline Var operator - (NUM_TYPE f, const Var& v) {
+	return Subtract::build(Scalar::build(f), v);
+}
+inline Var operator - (const Var& v) {
+	return Subtract::build(Scalar::build(0.0f), v);
+}
+
+inline Var operator * (const Var& v, NUM_TYPE f) {
 	return Mult::build(v, Scalar::build(f));
 }
 
-inline Var operator / (float f, const Var& v) {
+inline Var operator / (NUM_TYPE f, const Var& v) {
 	return Div::build(Scalar::build(f), v);
 }
 
-inline Var operator / (const Var& v, float f) {
+inline Var operator / (const Var& v, NUM_TYPE f) {
 	return Div::build(v, Scalar::build(f));
 }
 
@@ -402,7 +416,8 @@ Var cos(const Var& v) {
 
 
 
-
+struct VecPlusVec;
+struct VecMultVar;
 
 
 struct VecDotVec : Scalar {
@@ -439,6 +454,14 @@ struct VecDotVec : Scalar {
 		a->partial += b->value * partial;
 		b->partial += a->value * partial;
 	}
+
+	void updateGradientFunction() override final;
+
+
+/*	void updateGradientFunction() override final {
+		a->gradientFunction = VecPlusVec::build(a->gradientFunction, VecMultVar::build(b, gradientFunction));
+		b->gradientFunction = VecPlusVec::build(b->gradientFunction, VecMultVar::build(a, gradientFunction));
+	}*/
 };
 
 inline Var operator * (const Vec& v1, const Vec& v2) {
@@ -453,10 +476,10 @@ struct VecHadamardVec : Vector {
 
 	Vec a, b;
 
-	VecHadamardVec(size_t s = 0, float fillValue = 0.0f) {
+	VecHadamardVec(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
 		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const Vec& v1, const Vec& v2) {
@@ -500,10 +523,10 @@ struct VecDivVec : Vector {
 
 	Vec a, b;
 
-	VecDivVec(size_t s = 0, float fillValue = 0.0f) {
+	VecDivVec(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
 		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const Vec& v1, const Vec& v2) {
@@ -531,7 +554,7 @@ struct VecDivVec : Vector {
 	void derive() override final {
 		for (size_t i = 0; i < size; ++i) {
 
-			float inv = 1.0f / (b->value[i] * b->value[i]);
+			NUM_TYPE inv = 1.0f / (b->value[i] * b->value[i]);
 
 			a->partial[i] += b->value[i] * inv * partial[i];
 			b->partial[i] -= a->value[i] * inv * partial[i];
@@ -549,10 +572,10 @@ struct VecDivVar : Vector {
 	Vec a;
 	Var b;
 
-	VecDivVar(size_t s = 0, float fillValue = 0.0f) {
+	VecDivVar(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
 		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const Vec& v1, const Var& v2) {
@@ -572,14 +595,14 @@ struct VecDivVar : Vector {
 	}
 
 	void evaluate() override final {
-		float inv = 1.0f / b->value;
+		NUM_TYPE inv = 1.0f / b->value;
 		for (size_t i = 0; i < a->size; ++i) {
 			value[i] = a->value[i] * inv;
 		}
 	}
 
 	void derive() override final {
-		float inv = 1.0f / (b->value * b->value);
+		NUM_TYPE inv = 1.0f / (b->value * b->value);
 
 		for (size_t i = 0; i < size; ++i) {
 			a->partial[i] += b->value * inv * partial[i];
@@ -598,10 +621,10 @@ struct VecMultVar : Vector {
 	Vec a;
 	Var b;
 
-	VecMultVar(size_t s = 0, float fillValue = 0.0f) {
+	VecMultVar(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
 		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const Vec& v1, const Var& v2) {
@@ -649,10 +672,10 @@ struct VecAddVar : Vector {
 	Vec a;
 	Var b;
 
-	VecAddVar(size_t s = 0, float fillValue = 0.0f) {
+	VecAddVar(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
 		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const Vec& v1, const Var& v2) {
@@ -699,10 +722,10 @@ struct VecMinusVec : Vector {
 
 	Vec a, b;
 
-	VecMinusVec(size_t s = 0, float fillValue = 0.0f) {
+	VecMinusVec(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
 		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const Vec& v1, const Vec& v2) {
@@ -744,10 +767,10 @@ struct VecPlusVec : Vector {
 
 	Vec a, b;
 
-	VecPlusVec(size_t s = 0, float fillValue = 0.0f) {
+	VecPlusVec(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
 		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const Vec& v1, const Vec& v2) {
@@ -776,6 +799,11 @@ struct VecPlusVec : Vector {
 		a->partial += partial;
 		b->partial += partial;
 	}
+
+	void updateGradientFunction() override final {
+		a->gradientFunction = VecPlusVec::build(a->gradientFunction, gradientFunction);
+		b->gradientFunction = VecPlusVec::build(b->gradientFunction, gradientFunction);
+	}
 };
 
 inline Vec operator + (const Vec& v1, const Vec& v2) {
@@ -788,10 +816,10 @@ struct VecMinusVar : Vector {
 	Vec a;
 	Var b;
 
-	VecMinusVar(size_t s = 0, float fillValue = 0.0f) {
+	VecMinusVar(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
 		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const Vec& v1, const Var& v2) {
@@ -841,10 +869,10 @@ struct VecTanh : Vector {
 
 	Vec a;
 
-	VecTanh(size_t s = 0, float fillValue = 0.0f) {
+	VecTanh(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
 		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const Vec& v) {
@@ -885,10 +913,10 @@ struct VecSigmoid : Vector {
 
 	Vec a;
 
-	VecSigmoid(size_t s = 0, float fillValue = 0.0f) {
+	VecSigmoid(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
 		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const Vec& v) {
@@ -930,10 +958,10 @@ struct VecExp : Vector {
 
 	Vec a;
 
-	VecExp(size_t s = 0, float fillValue = 0.0f) {
+	VecExp(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
 		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const Vec& v) {
@@ -972,10 +1000,10 @@ struct VecLog : Vector {
 
 	Vec a;
 
-	VecLog(size_t s = 0, float fillValue = 0.0f) {
+	VecLog(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
 		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const Vec& v) {
@@ -1010,6 +1038,50 @@ Vec log(const Vec& v) {
 }
 
 
+struct VecMaxElements : Vector {
+
+	Vec a;
+	NUM_TYPE m;
+
+	VecMaxElements(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
+		size = s;
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
+	}
+
+	static Vec build(const Vec& v, NUM_TYPE m = 0.0f) {
+
+		std::shared_ptr<VecMaxElements> node = std::make_shared<VecMaxElements>(v->size);
+
+		node->a = v;
+		node->m = m;
+		#if USE_NAME
+			node->name = "max(" + v->name + ", " + std::to_string(m) + ")";
+		#endif
+
+		node->parents.push_back(v);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < size; ++i) {
+			value[i] = std::max(m, a->value[i]);
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < size; ++i) {
+			a->partial[i] += partial[i] * (value[i] >= m);
+		}
+	}
+};
+
+Vec max(const Vec& v, NUM_TYPE m = 0.0f) {
+	return VecMaxElements::build(v, m);
+}
+
+
 
 
 
@@ -1018,12 +1090,12 @@ struct MatSigmoid : Matrix {
 
 	Mat a;
 
-	MatSigmoid(size_t r = 0, size_t c = 0, float fillValue = 0.0f) {
+	MatSigmoid(size_t r = 0, size_t c = 0, NUM_TYPE fillValue = 0.0f) {
 		rows = r;
 		cols = c;
 
-		value = std::vector<std::vector<float>>(r, std::vector<float>(c, fillValue));
-		partial = std::vector<std::vector<float>>(r, std::vector<float>(c, 0.0f));
+		value = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, fillValue));
+		partial = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, 0.0f));
 	}
 
 	static Mat build(const Mat& m) {
@@ -1153,10 +1225,10 @@ struct MatDotVec : Vector {
 	Mat a;
 	Vec b;
 
-	MatDotVec(size_t s = 0, float fillValue = 0.0f) {
+	MatDotVec(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
 		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const Mat& m, const Vec& v) {
@@ -1176,7 +1248,7 @@ struct MatDotVec : Vector {
 	}
 
 	void evaluate() override final {
-	//	value = std::vector<float>(size, 0.0f);
+	//	value = std::vector<NUM_TYPE>(size, 0.0f);
 
 		for (size_t i = 0; i < a->rows; ++i) {
 			value[i] = 0.0f;
@@ -1211,12 +1283,12 @@ struct MatDotMat : Matrix {
 
 	Mat a, b;
 
-	MatDotMat(size_t r = 0, size_t c = 0, float fillValue = 0.0f) {
+	MatDotMat(size_t r = 0, size_t c = 0, NUM_TYPE fillValue = 0.0f) {
 		rows = r;
 		cols = c;
 
-		value = std::vector<std::vector<float>>(r, std::vector<float>(c, fillValue));
-		partial = std::vector<std::vector<float>>(r, std::vector<float>(c, 0.0f));
+		value = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, fillValue));
+		partial = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, 0.0f));
 	}
 
 	static Mat build(const Mat& m1, const Mat& m2) {
@@ -1305,12 +1377,12 @@ struct TransposeMat : Matrix {
 
 	Mat a;
 
-	TransposeMat(size_t r = 0, size_t c = 0, float fillValue = 0.0f) {
+	TransposeMat(size_t r = 0, size_t c = 0, NUM_TYPE fillValue = 0.0f) {
 		rows = r;
 		cols = c;
 
-		value = std::vector<std::vector<float>>(r, std::vector<float>(c, fillValue));
-		partial = std::vector<std::vector<float>>(r, std::vector<float>(c, 0.0f));
+		value = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, fillValue));
+		partial = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, 0.0f));
 	}
 
 	static Mat build(const Mat& m) {
@@ -1336,11 +1408,16 @@ struct TransposeMat : Matrix {
 	}
 
 	void derive() override final {
-		for (size_t i = 0; i < rows; ++i) {
-			for (size_t j = 0; j < cols; ++j) {
-				partial[i][j] += a->partial[j][i];
+		for (size_t j = 0; j < cols; ++j) {
+			for (size_t i = 0; i < rows; ++i) {
+				a->partial[j][i] += partial[i][j];
+			//	partial[i][j] += a->partial[j][i];
 			}
 		}
+	}
+
+	void updateGradientFunction() override final {
+		a->gradientFunction = a->gradientFunction + TransposeMat::build(gradientFunction);
 	}
 };
 
@@ -1357,12 +1434,12 @@ struct MatPlusVec : Matrix {
 	Mat a;
 	Vec b;
 
-	MatPlusVec(size_t r = 0, size_t c = 0, float fillValue = 0.0f) {
+	MatPlusVec(size_t r = 0, size_t c = 0, NUM_TYPE fillValue = 0.0f) {
 		rows = r;
 		cols = c;
 
-		value = std::vector<std::vector<float>>(r, std::vector<float>(c, fillValue));
-		partial = std::vector<std::vector<float>>(r, std::vector<float>(c, 0.0f));
+		value = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, fillValue));
+		partial = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, 0.0f));
 	}
 
 	static Mat build(const Mat& m, const Vec& v) {
@@ -1417,12 +1494,12 @@ struct MatMinusMat : Matrix {
 
 	Mat a, b;
 
-	MatMinusMat(size_t r = 0, size_t c = 0, float fillValue = 0.0f) {
+	MatMinusMat(size_t r = 0, size_t c = 0, NUM_TYPE fillValue = 0.0f) {
 		rows = r;
 		cols = c;
 
-		value = std::vector<std::vector<float>>(r, std::vector<float>(c, fillValue));
-		partial = std::vector<std::vector<float>>(r, std::vector<float>(c, 0.0f));
+		value = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, fillValue));
+		partial = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, 0.0f));
 	}
 
 	static Mat build(const Mat& m1, const Mat& m2) {
@@ -1463,6 +1540,56 @@ inline Mat operator - (const Mat& m1, const Mat& m2) {
 	return MatMinusMat::build(m1, m2);
 }
 
+struct MatPlusMat : Matrix {
+
+	Mat a, b;
+
+	MatPlusMat(size_t r = 0, size_t c = 0, NUM_TYPE fillValue = 0.0f) {
+		rows = r;
+		cols = c;
+
+		value = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, fillValue));
+		partial = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, 0.0f));
+	}
+
+	static Mat build(const Mat& m1, const Mat& m2) {
+
+		std::shared_ptr<MatPlusMat> node = std::make_shared<MatPlusMat>(m1->rows, m1->cols);
+
+		node->a = m1;
+		node->b = m2;
+		#if USE_NAME
+			node->name = "(" + m1->name + " + " + m2->name + ")";
+		#endif
+
+		node->parents.push_back(m1);
+		node->parents.push_back(m2);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < a->rows; ++i) {
+			for (size_t j = 0; j < a->cols; ++j) {
+				value[i][j] = a->value[i][j] + b->value[i][j];
+			}
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < a->rows; ++i) {
+			for (size_t j = 0; j < a->cols; ++j) {
+				a->partial[i][j] += partial[i][j];
+				b->partial[i][j] += partial[i][j];
+			}
+		}
+	}
+};
+
+inline Mat operator + (const Mat& m1, const Mat& m2) {
+	return MatPlusMat::build(m1, m2);
+}
+
 
 
 
@@ -1475,12 +1602,12 @@ struct MatHadamardMat : Matrix {
 
 	Mat a, b;
 
-	MatHadamardMat(size_t r = 0, size_t c = 0, float fillValue = 0.0f) {
+	MatHadamardMat(size_t r = 0, size_t c = 0, NUM_TYPE fillValue = 0.0f) {
 		rows = r;
 		cols = c;
 
-		value = std::vector<std::vector<float>>(r, std::vector<float>(c, fillValue));
-		partial = std::vector<std::vector<float>>(r, std::vector<float>(c, 0.0f));
+		value = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, fillValue));
+		partial = std::vector<std::vector<NUM_TYPE>>(r, std::vector<NUM_TYPE>(c, 0.0f));
 	}
 
 	static Mat build(const Mat& m1, const Mat& m2) {
@@ -1621,5 +1748,153 @@ struct MatSum : Scalar {
 inline Var sum(const Mat& m) {
 	return MatSum::build(m);
 }
+
+
+
+
+
+
+
+
+struct VecMaxVec : Vector {
+
+	Vec a, b;
+
+	VecMaxVec(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
+		size = s;
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
+	}
+
+	static Vec build(const Vec& v1, const Vec& v2) {
+
+		std::shared_ptr<VecMaxVec> node = std::make_shared<VecMaxVec>(v1->size);
+
+		node->a = v1;
+		node->b = v2;
+		#if USE_NAME
+			node->name = "max(" + v1->name + ", " + v2->name + ")";
+		#endif
+
+		node->parents.push_back(v1);
+		node->parents.push_back(v2);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < size; ++i) {
+			value[i] = std::max(a->value[i], b->value[i]);
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < size; ++i) {
+			if (a->value[i] >= b->value[i]) {
+				a->partial[i] += partial[i];
+			} else {
+				b->partial[i] += partial[i];
+			}
+		}
+	}
+};
+
+inline Vec max(const Vec& v1, const Vec& v2) {
+	return VecMaxVec::build(v1, v2);
+}
+
+
+struct VecSin : Vector {
+
+	Vec a;
+
+	VecSin(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
+		size = s;
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
+	}
+
+	static Vec build(const Vec& v) {
+
+		std::shared_ptr<VecSin> node = std::make_shared<VecSin>(v->size);
+
+		node->a = v;
+		#if USE_NAME
+			node->name = "sin(" + v->name + ")";
+		#endif
+
+		node->parents.push_back(v);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		for (size_t i = 0; i < size; ++i) {
+			value[i] = std::sin(a->value[i]);
+		}
+	}
+
+	void derive() override final {
+		for (size_t i = 0; i < size; ++i) {
+			a->partial[i] += partial[i] * std::cos(a->value[i]);
+		}
+	}
+};
+
+inline Vec sin(const Vec& v) {
+	return VecSin::build(v);
+}
+
+inline Vec operator - (NUM_TYPE v1, const Vec& v2) {
+	return VecMinusVec::build(Vector::build(v2->size, v1), v2);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void VecDotVec::updateGradientFunction() {
+	a->gradientFunction = VecPlusVec::build(a->gradientFunction, VecMultVar::build(b, gradientFunction));
+	b->gradientFunction = VecPlusVec::build(b->gradientFunction, VecMultVar::build(a, gradientFunction));
+}
+
+void VectorConcat::updateGradientFunction() {
+	a->gradientFunction = VecPlusVec::build(a->gradientFunction, gradientFunction->get(0, a->size));
+	b->gradientFunction = VecPlusVec::build(b->gradientFunction, gradientFunction->get(a->size, size));
+}
+
+
+
+
+
+
+Mat getJacobianFunction(const Vec& F, const Vec& wrt) {
+	vector<Vec> jacobian(F->size);
+
+	for (size_t i = 0; i < F->size; ++i) {
+		F[i]->calculateGradientFunctions();
+
+		jacobian[i] = wrt->gradientFunction;
+	}
+
+	return MatrixFromVectors::build(jacobian);
+}
+
+Vec getGradientFunction(const Var& f, const Vec& wrt) {
+	f->calculateGradientFunctions();
+	return wrt->gradientFunction;
+}
+
+
+
 
 #endif

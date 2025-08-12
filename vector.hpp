@@ -8,14 +8,20 @@
 #include <filesystem>
 
 
-inline void operator += (std::vector<float>& v1, const std::vector<float>& v2) {
+
+#ifndef NUM_TYPE
+#define NUM_TYPE NUM_TYPE
+#endif
+
+
+inline void operator += (std::vector<NUM_TYPE>& v1, const std::vector<NUM_TYPE>& v2) {
 	for (size_t i = 0; i < v1.size(); ++i) {
 		v1[i] += v2[i];
 	}
 }
 
-inline std::vector<float> operator + (const std::vector<float>& v1, const std::vector<float>& v2) {
-	std::vector<float> ans = v1;
+inline std::vector<NUM_TYPE> operator + (const std::vector<NUM_TYPE>& v1, const std::vector<NUM_TYPE>& v2) {
+	std::vector<NUM_TYPE> ans = v1;
 	for (size_t i = 0; i < v1.size(); ++i) {
 		ans[i] += v2[i];
 	}
@@ -23,8 +29,8 @@ inline std::vector<float> operator + (const std::vector<float>& v1, const std::v
 	return ans;
 }
 
-inline std::vector<float> operator * (const std::vector<float>& v, float a) {
-	std::vector<float> ans = v;
+inline std::vector<NUM_TYPE> operator * (const std::vector<NUM_TYPE>& v, NUM_TYPE a) {
+	std::vector<NUM_TYPE> ans = v;
 	for (size_t i = 0; i < ans.size(); ++i) {
 		ans[i] *= a;
 	}
@@ -32,9 +38,9 @@ inline std::vector<float> operator * (const std::vector<float>& v, float a) {
 	return ans;
 }
 
-std::ostream& operator << (std::ostream& os, const std::vector<float>& v) {
+std::ostream& operator << (std::ostream& os, const std::vector<NUM_TYPE>& v) {
 
-	os << "(";
+	os << "[";
 
 	for (size_t i = 0; i < v.size(); ++i) {
 		os << v[i];
@@ -44,7 +50,7 @@ std::ostream& operator << (std::ostream& os, const std::vector<float>& v) {
 		}
 	}
 
-	os << ")";
+	os << "]";
 
 	return os;
 }
@@ -64,26 +70,27 @@ struct Vec {
 	std::shared_ptr<Vector> ptr;
 
 	Vec() {}
+	Vec(const std::shared_ptr<Node>& p) : ptr(std::dynamic_pointer_cast<Vector>(p)) {}
 	// now this is cool
 	template <typename T, typename = std::enable_if_t<std::is_base_of_v<Vector, T>>>
 	Vec(const std::shared_ptr<T>& p) : ptr(p) {}
 
-	Vector* operator->() const {
+	Vector* operator -> () const {
 		return ptr.get();
 	}
 
-	Vector& operator*() const {
+	Vector& operator * () const {
 		return *ptr;
 	}
 
-	vector<float> operator () () const;
+	std::vector<NUM_TYPE> operator () () const;
 
 
 	operator std::shared_ptr<Vector>() const {
 		return ptr;
 	}
 	operator std::shared_ptr<Node>() const {
-		return static_pointer_cast<Node>(ptr);
+		return std::static_pointer_cast<Node>(ptr);
 	}
 
 	Var operator [] (size_t index) const;
@@ -101,11 +108,11 @@ struct Vec {
 struct Vector : Node {
 
 	size_t size;
-	std::vector<float> value;
-	std::vector<float> partial;
+	std::vector<NUM_TYPE> value;
+	std::vector<NUM_TYPE> partial;
 	Vec gradientFunction;
 
-	Vector(size_t s = 0, float fillValue = 0.0f, const std::string& n = "", bool trainable = false) : size(s), value(std::vector<float>(s, fillValue)), partial(std::vector<float>(s, 0.0f)) {
+	Vector(size_t s = 0, NUM_TYPE fillValue = 0.0f, const std::string& n = "", bool trainable = false) : size(s), value(std::vector<NUM_TYPE>(s, fillValue)), partial(std::vector<NUM_TYPE>(s, 0.0f)) {
 		
 		#if USE_NAME
 			if (n == "") {
@@ -126,7 +133,7 @@ struct Vector : Node {
 		isTrainable = trainable;
 	}
 
-	static Vec build(size_t s = 0, float fillValue = 0.0f, bool trainable = false, const std::string& n = "") {
+	static Vec build(size_t s = 0, NUM_TYPE fillValue = 0.0f, bool trainable = false, const std::string& n = "") {
 		return std::make_shared<Vector>(s, fillValue, n, trainable);
 	}
 
@@ -138,7 +145,7 @@ struct Vector : Node {
 
 	}
 
-	void resetPartial(float defaultValue = 0.0f) override final {
+	void resetPartial(NUM_TYPE defaultValue = 0.0f) override final {
 		std::fill(partial.begin(), partial.end(), defaultValue);
 	}
 
@@ -150,7 +157,7 @@ struct Vector : Node {
 		
 	}
 
-	void resetGradientFunction(float defaultValue = 0.0f) override {
+	void resetGradientFunction(NUM_TYPE defaultValue = 0.0f) override {
 		gradientFunction = Vector::build(size, defaultValue);
 	}
 
@@ -165,7 +172,7 @@ struct Vector : Node {
 
 		file.write(reinterpret_cast<const char*>(&isTrainable), sizeof(isTrainable));
 		file.write(reinterpret_cast<const char*>(&size), sizeof(size));
-		file.write(reinterpret_cast<const char*>(&value[0]), size * sizeof(float));
+		file.write(reinterpret_cast<const char*>(&value[0]), size * sizeof(NUM_TYPE));
 
 		file.close();
 	}
@@ -186,14 +193,14 @@ struct Vector : Node {
 
 		Vec vec(std::make_shared<Vector>(size, 0.0f, "", trainable));
 
-		file.read(reinterpret_cast<char*>(&vec->value[0]), size * sizeof(float));
+		file.read(reinterpret_cast<char*>(&vec->value[0]), size * sizeof(NUM_TYPE));
 
 		return vec;
 	}
 
 
-/*	Var get(size_t index);
-	Vec get(size_t start, size_t end);*/
+	Var get(size_t index);
+	Vec get(size_t start, size_t end);
 };
 
 // nicer naming
@@ -205,7 +212,7 @@ struct Vector : Node {
 
 
 
-vector<float> Vec::operator () () const {
+std::vector<NUM_TYPE> Vec::operator () () const {
 	ptr->eval();
 	return ptr->value;
 }
@@ -233,10 +240,10 @@ struct VectorAddAtPos : Vector {
 	Var b;
 	size_t index;
 
-	VectorAddAtPos(size_t s = 0, float fillValue = 0.0f) {
+	VectorAddAtPos(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
 		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const Vec& v, const Var& s, size_t index = 0) {
@@ -270,6 +277,54 @@ struct VectorAddAtPos : Vector {
 		a->gradientFunction = a->gradientFunction + gradientFunction;
 		b->gradientFunction = b->gradientFunction + gradientFunction[index];
 	}
+};
+
+// a + b', where b' = concat({0, 0, ..., 0}, b). If b' is smaller of bigger than a, it'll be padded with 0s or it's last elements will be ignored
+struct VectorAddVecWithOffset : Vector {
+	Vec a;
+	Vec b;
+	size_t offset;
+
+	VectorAddVecWithOffset(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
+		size = s;
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
+	}
+
+	static Vec build(const Vec& v1, const Vec& v2, size_t offset = 0) {
+
+		std::shared_ptr<VectorAddVecWithOffset> node = std::make_shared<VectorAddVecWithOffset>(v1->size);
+
+		node->a = v1;
+		node->b = v2;
+		node->offset = offset;
+
+		node->parents.push_back(v1);
+		node->parents.push_back(v2);
+
+		return node;
+	}
+
+	void evaluate() override final {
+		value = a->value;
+		for (size_t i = 0; i < b->size && i + offset < a->size; ++i) {
+			value[i + offset] += b->value[i];
+		}
+	}
+
+	void derive() override final {
+		a->partial += partial;
+
+		for (size_t i = 0; i < b->size && i + offset < a->size; ++i) {
+			b->partial[i] += partial[i + offset];
+		}
+	}
+
+/*	void updateGradientFunction() override final {
+		a->gradientFunction = a->gradientFunction + gradientFunction;
+		b->gradientFunction = VectorAddVecWithOffset::build(b->gradientFunction, )
+		b->gradientFunction = b->gradientFunction + gradientFunction[index];
+	}*/
 };
 
 
@@ -314,9 +369,9 @@ struct GetVectorElem : Scalar {
 Var Vec::operator [] (size_t index) const {
 	return GetVectorElem::build(*this, index);
 }
-/*Var Vector::get(size_t index = 0) {
-	return GetVectorElem::build(get_self(), index);
-}*/
+Var Vector::get(size_t index = 0) {
+	return GetVectorElem::build(Vec(shared_from_this()), index);
+}
 
 
 
@@ -325,10 +380,10 @@ struct GetVectorElems : Vector {
 	Vec a;
 	size_t start, end;
 
-	GetVectorElems(size_t s = 0, float fillValue = 0.0f) {
+	GetVectorElems(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
 		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const Vec& v, size_t start, size_t end) {
@@ -364,15 +419,19 @@ struct GetVectorElems : Vector {
 			a->partial[i + start] += partial[i];
 		}
 	}
+
+	void updateGradientFunction() override final {
+		a->gradientFunction = VectorAddVecWithOffset::build(a->gradientFunction, gradientFunction, start);
+	}
 };
 
 
 Vec Vec::operator () (size_t start, size_t end) const {
 	return GetVectorElems::build(*this, start, end);
 }
-/*Vec Vector::get(size_t start, size_t end) {
-	return GetVectorElems::build(get_self(), start, end);
-}*/
+Vec Vector::get(size_t start, size_t end) {
+	return GetVectorElems::build(Vec(shared_from_this()), start, end);
+}
 
 
 
@@ -384,10 +443,10 @@ Vec Vec::operator () (size_t start, size_t end) const {
 struct VectorFromScalars : Vector {
 	std::vector<Var> a;
 
-	VectorFromScalars(size_t s = 0, float fillValue = 0.0f) {
+	VectorFromScalars(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
 		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const std::vector<Var>& vars) {
@@ -414,6 +473,13 @@ struct VectorFromScalars : Vector {
 			a[i]->partial += partial[i];
 		}
 	}
+
+
+	void updateGradientFunction() override final {
+		for (size_t i = 0; i < size; ++i) {
+			a[i]->gradientFunction = a[i]->gradientFunction + gradientFunction[i];
+		}
+	}
 };
 
 
@@ -422,10 +488,10 @@ struct VectorFromScalars : Vector {
 struct VectorConcat : Vector {
 	Vec a, b;
 
-	VectorConcat(size_t s = 0, float fillValue = 0.0f) {
+	VectorConcat(size_t s = 0, NUM_TYPE fillValue = 0.0f) {
 		size = s;
-		value = std::vector<float>(s, fillValue);
-		partial = std::vector<float>(s, 0.0f);
+		value = std::vector<NUM_TYPE>(s, fillValue);
+		partial = std::vector<NUM_TYPE>(s, 0.0f);
 	}
 
 	static Vec build(const Vec& v1, const Vec& v2) {
@@ -460,9 +526,19 @@ struct VectorConcat : Vector {
 			b->partial[i] += partial[i + a->size];
 		}
 	}
+
+
+	void updateGradientFunction() override final;
+
+/*	void updateGradientFunction() override final {
+		a->gradientFunction = gradientFunction->get(0, a->size);
+		b->gradientFunction = gradientFunction->get(a->size, size);
+	}*/
 };
 
-
+inline Vec concat(const Vec& v1, const Vec& v2) {
+	return VectorConcat::build(v1, v2);
+}
 
 
 

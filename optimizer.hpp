@@ -9,9 +9,14 @@
 
 
 
-using ScalarType = float;
-using VectorType = std::vector<float>;
-using MatrixType = std::vector<std::vector<float>>;
+#ifndef NUM_TYPE
+#define NUM_TYPE NUM_TYPE
+#endif
+
+
+using ScalarType = NUM_TYPE;
+using VectorType = std::vector<NUM_TYPE>;
+using MatrixType = std::vector<std::vector<NUM_TYPE>>;
 
 ScalarType zerosLike(const ScalarType& a) {
 	return 0.0f;
@@ -37,10 +42,10 @@ struct Optimizer {
 	std::vector<OptimizerParam<VectorType>> optimVector;
 	std::vector<OptimizerParam<MatrixType>> optimMatrix;
 
-	std::shared_ptr<Node> func;
+	std::shared_ptr<Scalar> func;
 
 	template<class... Types>
-	Optimizer(const std::shared_ptr<Node>& f, Types... args) : func(f) {
+	Optimizer(const std::shared_ptr<Scalar>& f, Types... args) : func(f) {
 
 		// doing this to get every parameter that affects the function f
 		std::vector<std::shared_ptr<Node>> ordering = f->topologicalSort();
@@ -95,18 +100,6 @@ struct Optimizer {
 	}
 
 
-	void optimize(int maxIter) {
-
-		if (!func) return;
-
-		for (int iter = 0; iter < maxIter; ++iter) {
-			prepare();
-			func->calculateDerivatives();
-			step();
-		}
-	}
-
-
 
 	void step() {
 		for (size_t i = 0; i < optimScalar.size(); ++i) {
@@ -131,14 +124,49 @@ struct Optimizer {
 			optimMatrix[i].prepare(matrixParameters[i]->value);
 		}
 	}
+
+
+	void optimize(int maxIter, bool verbose = false) {
+
+		if (!func) return;
+
+		for (int iter = 0; iter < maxIter; ++iter) {
+			prepare();
+			func->calculateDerivatives();
+			step();
+
+			if (verbose && (iter + 1) % (maxIter / 10) == 0) {
+				cout << "Loss at iter " << iter + 1 << ": " << func->value << "\n";
+			}
+		}
+	}
+
+	void optimize(int maxIter, std::vector<NUM_TYPE>& losses, int stepsBetweenSaves = 1) {
+
+		if (!func) return;
+
+		// save loss before training
+		func->eval();
+		losses.push_back(func->value);
+
+		for (int iter = 0; iter < maxIter; ++iter) {
+			prepare();
+			func->calculateDerivatives();
+			step();
+
+			if ((iter + 1) % stepsBetweenSaves == 0) {
+				losses.push_back(func->value);
+			}
+		}
+	}
 };
 
 
 template <typename T>
 struct GradientDescent {
-	float lr;
+	NUM_TYPE lr;
 
-	GradientDescent(const T& param, float lr = 0.01f) : lr(-lr) {
+	GradientDescent(const T& param, NUM_TYPE lr = 0.01f) : lr(-lr) {
 		
 	}
 
@@ -154,10 +182,10 @@ struct GradientDescent {
 
 template <typename T>
 struct Momentum {
-	float a, b;
+	NUM_TYPE a, b;
 	T v;
 
-	Momentum(const T& param, float a = 0.1f, float b = 0.9f) : a(a), b(b), v(zerosLike(param)) {
+	Momentum(const T& param, NUM_TYPE a = 0.1f, NUM_TYPE b = 0.9f) : a(a), b(b), v(zerosLike(param)) {
 		
 	}
 
@@ -222,10 +250,10 @@ MatrixType hadamard(MatrixType a, const MatrixType& b) {
 
 
 // division for adagrad special
-ScalarType div(float n, const ScalarType& a) {
+ScalarType div(NUM_TYPE n, const ScalarType& a) {
 	return n / (std::sqrt(a) + 1e-8);
 }
-VectorType div(float n, VectorType a) {
+VectorType div(NUM_TYPE n, VectorType a) {
 
 	for (size_t i = 0; i < a.size(); ++i) {
 		a[i] = n / (std::sqrt(a[i]) + 1e-8);
@@ -233,7 +261,7 @@ VectorType div(float n, VectorType a) {
 
 	return a;
 }
-MatrixType div(float n, MatrixType a) {
+MatrixType div(NUM_TYPE n, MatrixType a) {
 
 	for (size_t i = 0; i < a.size(); ++i) {
 		for (size_t j = 0; j < a[0].size(); ++j) {
@@ -247,10 +275,10 @@ MatrixType div(float n, MatrixType a) {
 
 template <typename T>
 struct AdaGrad {
-	float n;
+	NUM_TYPE n;
 	T G;
 
-	AdaGrad(const T& param, float n = 0.1f) : n(n), G(zerosLike(param)) {
+	AdaGrad(const T& param, NUM_TYPE n = 0.1f) : n(n), G(zerosLike(param)) {
 		
 	}
 
@@ -271,14 +299,14 @@ struct AdaGrad {
 
 template <typename T>
 struct Adam {
-	float n;
-	float b1, b2;
-	float b1_power_t = 1.0f, b2_power_t = 1.0f;
+	NUM_TYPE n;
+	NUM_TYPE b1, b2;
+	NUM_TYPE b1_power_t = 1.0f, b2_power_t = 1.0f;
 
 	T v;
 	T m;
 
-	Adam(const T& param, float n = 0.01f, float b1 = 0.9f, float b2 = 0.999f) : n(n), b1(b1), b2(b2), v(zerosLike(param)), m(zerosLike(param)) {
+	Adam(const T& param, NUM_TYPE n = 0.01f, NUM_TYPE b1 = 0.9f, NUM_TYPE b2 = 0.999f) : n(n), b1(b1), b2(b2), v(zerosLike(param)), m(zerosLike(param)) {
 		
 	}
 
@@ -308,10 +336,10 @@ struct Adam {
 
 template <typename T>
 struct RMSProp {
-	float a, b;
+	NUM_TYPE a, b;
 	T V;
 
-	RMSProp(const T& param, float a = 0.01f, float b = 0.9f) : a(a), b(b), V(zerosLike(param)) {
+	RMSProp(const T& param, NUM_TYPE a = 0.01f, NUM_TYPE b = 0.9f) : a(a), b(b), V(zerosLike(param)) {
 		
 	}
 
@@ -330,10 +358,10 @@ struct RMSProp {
 // I think this is wrong (?) is working really poorly in my tests, but it seems like the formula is correct??
 template <typename T>
 struct NAG {
-	float a, b;
+	NUM_TYPE a, b;
 	T V;
 
-	NAG(const T& param, float a = 0.01f, float b = 0.9f) : a(a), b(b), V(zerosLike(param)) {
+	NAG(const T& param, NUM_TYPE a = 0.01f, NUM_TYPE b = 0.9f) : a(a), b(b), V(zerosLike(param)) {
 		
 	}
 

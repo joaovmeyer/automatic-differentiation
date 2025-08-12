@@ -10,6 +10,12 @@
 #include <omp.h>
 
 
+
+#ifndef NUM_TYPE
+#define NUM_TYPE NUM_TYPE
+#endif
+
+
 // using the function's name can be helpfull for debugging, but sometimes it can break everything
 // in the GRU implementation, the functions names were getting REALLY big, bigger than my RAM,
 // so in this case it's best to avoid using the name at all
@@ -38,10 +44,10 @@ struct Node : std::enable_shared_from_this<Node> {
 
 	virtual inline void evaluate() = 0;
 	virtual inline void derive() = 0;
-	virtual inline void resetPartial(float defaultValue = 0.0f) = 0;
+	virtual inline void resetPartial(NUM_TYPE defaultValue = 0.0f) = 0;
 	virtual inline NodeTypes getType() = 0;
 	virtual inline void updateGradientFunction() = 0; // similar to derive but to the function, not partial
-	virtual inline void resetGradientFunction(float defaultValue = 0.0f) = 0; // similar to resetPartial, ...
+	virtual inline void resetGradientFunction(NUM_TYPE defaultValue = 0.0f) = 0; // similar to resetPartial, ...
 
 
 	std::vector<std::shared_ptr<Node>> topologicalSort() {
